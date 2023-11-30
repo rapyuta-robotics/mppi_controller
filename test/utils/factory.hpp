@@ -18,19 +18,19 @@
 #include <string>
 #include <vector>
 
-#include "nav2_costmap_2d/costmap_2d.hpp"
-#include "nav2_costmap_2d/costmap_2d_ros.hpp"
+#include "costmap_2d/costmap_2d.hpp"
+#include <costmap_2d/costmap_2d_ros.h>
 
-#include <geometry_msgs/msg/pose_stamped.hpp>
-#include <geometry_msgs/msg/twist.hpp>
+#include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/Twist.h>
 #include <nav_msgs/msg/path.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_lifecycle/lifecycle_node.hpp>
 
-#include "nav2_mppi_controller/motion_models.hpp"
-#include "nav2_mppi_controller/optimizer.hpp"
-#include "nav2_mppi_controller/tools/parameters_handler.hpp"
-#include "nav2_mppi_controller/controller.hpp"
+#include "mppi_controller/motion_models.hpp"
+#include "mppi_controller/optimizer.hpp"
+#include "mppi_controller/tools/parameters_handler.hpp"
+#include "mppi_controller/controller.hpp"
 
 #include "models.hpp"
 
@@ -98,16 +98,16 @@ geometry_msgs::msg::Point getDummyPoint(double x, double y)
   return point;
 }
 
-std::shared_ptr<nav2_costmap_2d::Costmap2DROS> getDummyCostmapRos()
+std::shared_ptr<costmap_2d::Costmap2DROS> getDummyCostmapRos()
 {
-  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>("cost_map_node");
+  auto costmap_ros = std::make_shared<costmap_2d::Costmap2DROS>("cost_map_node");
   costmap_ros->on_configure(rclcpp_lifecycle::State{});
   return costmap_ros;
 }
 
-std::shared_ptr<nav2_costmap_2d::Costmap2D> getDummyCostmap(TestCostmapSettings s)
+std::shared_ptr<costmap_2d::Costmap2D> getDummyCostmap(TestCostmapSettings s)
 {
-  auto costmap = std::make_shared<nav2_costmap_2d::Costmap2D>(
+  auto costmap = std::make_shared<costmap_2d::Costmap2D>(
     s.cells_x, s.cells_y, s.resolution, s.origin_x, s.origin_y, s.cost_map_default_value);
 
   return costmap;
@@ -118,7 +118,7 @@ std::vector<geometry_msgs::msg::Point> getDummySquareFootprint(double a)
   return {getDummyPoint(a, a), getDummyPoint(-a, -a), getDummyPoint(a, -a), getDummyPoint(-a, a)};
 }
 
-std::shared_ptr<nav2_costmap_2d::Costmap2DROS> getDummyCostmapRos(TestCostmapSettings s)
+std::shared_ptr<costmap_2d::Costmap2DROS> getDummyCostmapRos(TestCostmapSettings s)
 {
   auto costmap_ros = getDummyCostmapRos();
   auto costmap_ptr = costmap_ros->getCostmap();
@@ -174,11 +174,11 @@ mppi::PathHandler getDummyPathHandler(
 }
 
 template<typename TNode, typename TCostMap, typename TFBuffer>
-std::shared_ptr<nav2_mppi_controller::MPPIController> getDummyController(
+std::shared_ptr<mppi_controller::MPPIController> getDummyController(
   TNode node, TFBuffer tf_buffer,
   TCostMap costmap_ros)
 {
-  auto controller = std::make_shared<nav2_mppi_controller::MPPIController>();
+  auto controller = std::make_shared<mppi_controller::MPPIController>();
   std::weak_ptr<rclcpp_lifecycle::LifecycleNode> weak_ptr_node{node};
 
   controller->configure(weak_ptr_node, node->get_name(), tf_buffer, costmap_ros);
@@ -188,24 +188,24 @@ std::shared_ptr<nav2_mppi_controller::MPPIController> getDummyController(
 
 auto getDummyTwist()
 {
-  geometry_msgs::msg::Twist twist;
+  geometry_msgs::Twist twist;
   return twist;
 }
 
 template<typename TNode>
-geometry_msgs::msg::PoseStamped
+geometry_msgs::PoseStamped
 getDummyPointStamped(TNode & node, std::string frame = std::string("odom"))
 {
-  geometry_msgs::msg::PoseStamped point;
+  geometry_msgs::PoseStamped point;
   detail::setHeader(point, node, frame);
 
   return point;
 }
 
 template<typename TNode>
-geometry_msgs::msg::PoseStamped getDummyPointStamped(TNode & node, TestPose pose)
+geometry_msgs::PoseStamped getDummyPointStamped(TNode & node, TestPose pose)
 {
-  geometry_msgs::msg::PoseStamped point = getDummyPointStamped(node);
+  geometry_msgs::PoseStamped point = getDummyPointStamped(node);
   point.pose.position.x = pose.x;
   point.pose.position.y = pose.y;
 
@@ -213,9 +213,9 @@ geometry_msgs::msg::PoseStamped getDummyPointStamped(TNode & node, TestPose pose
 }
 
 template<typename TNode>
-nav_msgs::msg::Path getDummyPath(TNode node, std::string frame = std::string("odom"))
+nav_msgs::Path getDummyPath(TNode node, std::string frame = std::string("odom"))
 {
-  nav_msgs::msg::Path path;
+  nav_msgs::Path path;
   detail::setHeader(path, node, frame);
   return path;
 }
@@ -233,7 +233,7 @@ auto getDummyPath(size_t points_count, TNode node)
 }
 
 template<typename TNode>
-nav_msgs::msg::Path getIncrementalDummyPath(TNode node, TestPathSettings s)
+nav_msgs::Path getIncrementalDummyPath(TNode node, TestPathSettings s)
 {
   auto path = getDummyPath(node);
 

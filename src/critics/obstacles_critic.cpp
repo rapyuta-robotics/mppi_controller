@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <cmath>
-#include "nav2_mppi_controller/critics/obstacles_critic.hpp"
+#include "mppi_controller/critics/obstacles_critic.hpp"
 
 namespace mppi::critics
 {
@@ -51,7 +51,7 @@ void ObstaclesCritic::initialize()
 }
 
 float ObstaclesCritic::findCircumscribedCost(
-  std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap)
+  std::shared_ptr<costmap_2d::Costmap2DROS> costmap)
 {
   double result = -1.0;
   bool inflation_layer_found = false;
@@ -67,7 +67,7 @@ float ObstaclesCritic::findCircumscribedCost(
     layer != costmap->getLayeredCostmap()->getPlugins()->end();
     ++layer)
   {
-    auto inflation_layer = std::dynamic_pointer_cast<nav2_costmap_2d::InflationLayer>(*layer);
+    auto inflation_layer = std::dynamic_pointer_cast<costmap_2d::InflationLayer>(*layer);
     if (!inflation_layer) {
       continue;
     }
@@ -187,7 +187,7 @@ bool ObstaclesCritic::inCollision(float cost) const
     costmap_ros_->getLayeredCostmap()->isTrackingUnknown();
 
   switch (static_cast<unsigned char>(cost)) {
-    using namespace nav2_costmap_2d; // NOLINT
+    using namespace costmap_2d; // NOLINT
     case (LETHAL_OBSTACLE):
       return true;
     case (INSCRIBED_INFLATED_OBSTACLE):
@@ -206,7 +206,7 @@ CollisionCost ObstaclesCritic::costAtPose(float x, float y, float theta)
   collision_cost.using_footprint = false;
   unsigned int x_i, y_i;
   if (!collision_checker_.worldToMap(x, y, x_i, y_i)) {
-    cost = nav2_costmap_2d::NO_INFORMATION;
+    cost = costmap_2d::NO_INFORMATION;
     return collision_cost;
   }
   cost = collision_checker_.pointCost(x_i, y_i);

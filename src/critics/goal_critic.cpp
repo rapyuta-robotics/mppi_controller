@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "nav2_mppi_controller/critics/goal_critic.hpp"
+#include "mppi_controller/critics/goal_critic.hpp"
 
 namespace mppi::critics
 {

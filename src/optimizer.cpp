@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "nav2_mppi_controller/optimizer.hpp"
+#include "mppi_controller/optimizer.hpp"
+
+#include <mbf_msgs/ExePathResult.h>
 
 #include <limits>
 #include <memory>
@@ -24,33 +26,25 @@
 #include <xtensor/xrandom.hpp>
 #include <xtensor/xnoalias.hpp>
 
-#include "nav2_core/controller_exceptions.hpp"
-#include "nav2_costmap_2d/costmap_filters/filter_values.hpp"
-
 namespace mppi
 {
 
 using namespace xt::placeholders;  // NOLINT
 using xt::evaluation_strategy::immediate;
 
-void Optimizer::initialize(
-  rclcpp_lifecycle::LifecycleNode::WeakPtr parent, const std::string & name,
-  std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros,
-  ParametersHandler * param_handler)
+void Optimizer::initialize(const ros::NodeHandle& parent_nh, const std::string& name,
+                           costmap_2d::Costmap2DROS* costmap_ros)
 {
-  parent_ = parent;
+  parent_nh_ = parent_nh;
+  pnh_ = ros::NodeHandle(parent_nh_, name);
   name_ = name;
   costmap_ros_ = costmap_ros;
   costmap_ = costmap_ros_->getCostmap();
-  parameters_handler_ = param_handler;
-
-  auto node = parent_.lock();
-  logger_ = node->get_logger();
 
   getParams();
 
-  critic_manager_.on_configure(parent_, name_, costmap_ros_, parameters_handler_);
-  noise_generator_.initialize(settings_, isHolonomic(), name_, parameters_handler_);
+  critic_manager_.on_configure(parent_nh_, name_, costmap_ros_);
+  noise_generator_.initialize(parent_nh_, settings_, isHolonomic(), name_);
 
   reset();
 }
@@ -64,32 +58,32 @@ void Optimizer::getParams()
 {
   std::string motion_model_name;
 
-  auto & s = settings_;
-  auto getParam = parameters_handler_->getParamGetter(name_);
-  auto getParentParam = parameters_handler_->getParamGetter("");
-  getParam(s.model_dt, "model_dt", 0.05f);
-  getParam(s.time_steps, "time_steps", 56);
-  getParam(s.batch_size, "batch_size", 1000);
-  getParam(s.iteration_count, "iteration_count", 1);
-  getParam(s.temperature, "temperature", 0.3f);
-  getParam(s.gamma, "gamma", 0.015f);
-  getParam(s.base_constraints.vx_max, "vx_max", 0.5);
-  getParam(s.base_constraints.vx_min, "vx_min", -0.35);
-  getParam(s.base_constraints.vy, "vy_max", 0.5);
-  getParam(s.base_constraints.wz, "wz_max", 1.9);
-  getParam(s.sampling_std.vx, "vx_std", 0.2);
-  getParam(s.sampling_std.vy, "vy_std", 0.2);
-  getParam(s.sampling_std.wz, "wz_std", 0.4);
-  getParam(s.retry_attempt_limit, "retry_attempt_limit", 1);
+  auto& s = settings_;
 
-  getParam(motion_model_name, "motion_model", std::string("DiffDrive"));
+  pnh_.param<double>("model_dt", s.model_dt, 0.05);
+  pnh_.param<int>("time_steps", s.time_steps, 56);
+  pnh_.param<int>("batch_size", s.batch_size, 1000);
+  pnh_.param<int>("iteration_count", s.iteration_count, 1);
+  pnh_.param<double>("temperature", s.temperature, 0.3);
+  pnh_.param<double>("gamma", s.gamma, 0.015);
+  pnh_.param<int>("retry_attempt_limit", s.retry_attempt_limit, 1);
+
+  pnh_.param<double>("vx_max", s.base_constraints.vx_max, 0.5);
+  pnh_.param<double>("vx_min", s.base_constraints.vx_min, -0.35);
+  pnh_.param<double>("vy_max", s.base_constraints.vy, 0.5);
+  pnh_.param<double>("wz_max", s.base_constraints.wz, 1.9);
+  pnh_.param<double>("vx_std", s.sampling_std.vx, 0.2);
+  pnh_.param<double>("vy_std", s.sampling_std.vy, 0.2);
+  pnh_.param<double>("wz_std", s.sampling_std.wz, 0.4);
+
+  pnh_.param<std::string>("motion_model", motion_model_name, std::string("DiffDrive"));
 
   s.constraints = s.base_constraints;
   setMotionModel(motion_model_name);
-  parameters_handler_->addPostCallback([this]() {reset();});
+  reset();
 
   double controller_frequency;
-  getParentParam(controller_frequency, "controller_frequency", 0.0, ParameterType::Static);
+  parent_nh_.param<double>("controller_frequency", controller_frequency, 0.0);
   setOffset(controller_frequency);
 }
 
@@ -99,18 +93,12 @@ void Optimizer::setOffset(double controller_frequency)
   constexpr double eps = 1e-6;
 
   if ((controller_period + eps) < settings_.model_dt) {
-    RCLCPP_WARN(
-      logger_,
-      "Controller period is less then model dt, consider setting it equal");
+    ROS_WARN("Controller period is less then model dt, consider setting it equal");
   } else if (abs(controller_period - settings_.model_dt) < eps) {
-    RCLCPP_INFO(
-      logger_,
-      "Controller period is equal to model dt. Control sequence "
-      "shifting is ON");
+    ROS_INFO("Controller period is equal to model dt. Control sequence shifting is ON");
     settings_.shift_control_sequence = true;
   } else {
-    throw nav2_core::ControllerException(
-            "Controller period more then model dt, set it equal to model dt");
+    throw std::runtime_error("Controller period more then model dt, set it equal to model dt");
   }
 }
 
@@ -127,28 +115,36 @@ void Optimizer::reset()
   generated_trajectories_.reset(settings_.batch_size, settings_.time_steps);
 
   noise_generator_.reset(settings_, isHolonomic());
-  RCLCPP_INFO(logger_, "Optimizer reset");
+  ROS_INFO("Optimizer reset");
 }
 
-geometry_msgs::msg::TwistStamped Optimizer::evalControl(
-  const geometry_msgs::msg::PoseStamped & robot_pose,
-  const geometry_msgs::msg::Twist & robot_speed,
-  const nav_msgs::msg::Path & plan, nav2_core::GoalChecker * goal_checker)
+uint32_t Optimizer::evalControl(const geometry_msgs::PoseStamped& robot_pose, const geometry_msgs::Twist& robot_speed,
+                                const nav_msgs::Path& plan, geometry_msgs::TwistStamped& cmd_vel)
 {
-  prepare(robot_pose, robot_speed, plan, goal_checker);
+  prepare(robot_pose, robot_speed, plan);
 
-  do {
+  while (true)
+  {
     optimize();
-  } while (fallback(critics_data_.fail_flag));
+
+    if (uint32_t error = mbf_msgs::ExePathResult::SUCCESS; !fallback(critics_data_.fail_flag, error))
+    {
+      if (error != mbf_msgs::ExePathResult::SUCCESS)
+      {
+        return error;
+      }
+      break;
+    }
+  }
 
   utils::savitskyGolayFilter(control_sequence_, control_history_, settings_);
-  auto control = getControlFromSequenceAsTwist(plan.header.stamp);
+  cmd_vel = getControlFromSequenceAsTwist(plan.header);
 
   if (settings_.shift_control_sequence) {
     shiftControlSequence();
   }
 
-  return control;
+  return mbf_msgs::ExePathResult::SUCCESS;
 }
 
 void Optimizer::optimize()
@@ -160,7 +156,7 @@ void Optimizer::optimize()
   }
 }
 
-bool Optimizer::fallback(bool fail)
+bool Optimizer::fallback(bool fail, uint32_t& error)
 {
   static size_t counter = 0;
 
@@ -173,16 +169,16 @@ bool Optimizer::fallback(bool fail)
 
   if (++counter > settings_.retry_attempt_limit) {
     counter = 0;
-    throw nav2_core::NoValidControl("Optimizer fail to compute path");
+    ROS_ERROR_NAMED("Optimizer", "Optimizer fail to compute path");
+    error = mbf_msgs::ExePathResult::NO_VALID_CMD;
+    return false;
   }
 
   return true;
 }
 
-void Optimizer::prepare(
-  const geometry_msgs::msg::PoseStamped & robot_pose,
-  const geometry_msgs::msg::Twist & robot_speed,
-  const nav_msgs::msg::Path & plan, nav2_core::GoalChecker * goal_checker)
+void Optimizer::prepare(const geometry_msgs::PoseStamped& robot_pose, const geometry_msgs::Twist& robot_speed,
+                        const nav_msgs::Path& plan)
 {
   state_.pose = robot_pose;
   state_.speed = robot_speed;
@@ -190,7 +186,6 @@ void Optimizer::prepare(
   costs_.fill(0);
 
   critics_data_.fail_flag = false;
-  critics_data_.goal_checker = goal_checker;
   critics_data_.motion_model = motion_model_;
   critics_data_.furthest_reached_path_point.reset();
   critics_data_.path_pts_valid.reset();
@@ -386,8 +381,7 @@ void Optimizer::updateControlSequence()
   applyControlSequenceConstraints();
 }
 
-geometry_msgs::msg::TwistStamped Optimizer::getControlFromSequenceAsTwist(
-  const builtin_interfaces::msg::Time & stamp)
+geometry_msgs::TwistStamped Optimizer::getControlFromSequenceAsTwist(const std_msgs::Header& header)
 {
   unsigned int offset = settings_.shift_control_sequence ? 1 : 0;
 
@@ -396,10 +390,10 @@ geometry_msgs::msg::TwistStamped Optimizer::getControlFromSequenceAsTwist(
 
   if (isHolonomic()) {
     auto vy = control_sequence_.vy(offset);
-    return utils::toTwistStamped(vx, vy, wz, stamp, costmap_ros_->getBaseFrameID());
+    return utils::toTwistStamped(vx, vy, wz, header);
   }
 
-  return utils::toTwistStamped(vx, wz, stamp, costmap_ros_->getBaseFrameID());
+  return utils::toTwistStamped(vx, wz, header);
 }
 
 void Optimizer::setMotionModel(const std::string & model)
@@ -409,24 +403,27 @@ void Optimizer::setMotionModel(const std::string & model)
   } else if (model == "Omni") {
     motion_model_ = std::make_shared<OmniMotionModel>();
   } else if (model == "Ackermann") {
-    motion_model_ = std::make_shared<AckermannMotionModel>(parameters_handler_);
+    motion_model_ = std::make_shared<AckermannMotionModel>(parent_nh_);
   } else {
-    throw nav2_core::ControllerException(
-            std::string(
-              "Model " + model + " is not valid! Valid options are DiffDrive, Omni, "
-              "or Ackermann"));
+    ROS_WARN_NAMED("Optimizer",
+                   "Model %s is not valid! Valid options are DiffDrive, Omni, or Ackermann; defaulting to DiffDrive",
+                   model.c_str());
+    motion_model_ = std::make_shared<DiffDriveMotionModel>();
   }
 }
 
 void Optimizer::setSpeedLimit(double speed_limit, bool percentage)
 {
   auto & s = settings_;
-  if (speed_limit == nav2_costmap_2d::NO_SPEED_LIMIT) {
+  if (speed_limit == 0.0)
+  {
     s.constraints.vx_max = s.base_constraints.vx_max;
     s.constraints.vx_min = s.base_constraints.vx_min;
     s.constraints.vy = s.base_constraints.vy;
     s.constraints.wz = s.base_constraints.wz;
-  } else {
+  }
+  else
+  {
     if (percentage) {
       // Speed limit is expressed in % from maximum speed of robot
       double ratio = speed_limit / 100.0;

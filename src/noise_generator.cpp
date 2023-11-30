@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "nav2_mppi_controller/tools/noise_generator.hpp"
+#include "mppi_controller/tools/noise_generator.hpp"
 
 #include <memory>
 #include <mutex>
@@ -23,16 +23,15 @@
 namespace mppi
 {
 
-void NoiseGenerator::initialize(
-  mppi::models::OptimizerSettings & settings, bool is_holonomic,
-  const std::string & name, ParametersHandler * param_handler)
+void NoiseGenerator::initialize(const ros::NodeHandle& parent_nh, mppi::models::OptimizerSettings& settings,
+                                bool is_holonomic, const std::string& name)
 {
   settings_ = settings;
   is_holonomic_ = is_holonomic;
   active_ = true;
 
-  auto getParam = param_handler->getParamGetter(name);
-  getParam(regenerate_noises_, "regenerate_noises", false);
+  pnh_ = ros::NodeHandle(parent_nh, name);
+  pnh_.param<bool>("regenerate_noises", regenerate_noises_, false);
 
   if (regenerate_noises_) {
     noise_thread_ = std::thread(std::bind(&NoiseGenerator::noiseThread, this));

@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "nav2_mppi_controller/critics/path_angle_critic.hpp"
+#include "mppi_controller/critics/path_angle_critic.hpp"
 
 #include <math.h>
 
@@ -76,7 +76,7 @@ void PathAngleCritic::score(CriticData & data)
   const float goal_x = xt::view(data.path.x, offseted_idx);
   const float goal_y = xt::view(data.path.y, offseted_idx);
   const float goal_yaw = xt::view(data.path.yaws, offseted_idx);
-  const geometry_msgs::msg::Pose & pose = data.state.pose.pose;
+  const geometry_msgs::Pose & pose = data.state.pose.pose;
 
   switch (mode_) {
     case PathAngleMode::FORWARD_PREFERENCE:

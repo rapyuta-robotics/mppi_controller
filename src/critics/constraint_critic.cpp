@@ -12,30 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "nav2_mppi_controller/critics/constraint_critic.hpp"
+#include "mppi_controller/critics/constraint_critic.hpp"
 
 namespace mppi::critics
 {
 
 void ConstraintCritic::initialize()
 {
-  auto getParam = parameters_handler_->getParamGetter(name_);
-  auto getParentParam = parameters_handler_->getParamGetter(parent_name_);
+  dsrv_ = std::make_unique<dynamic_reconfigure::Server<mppi_controller::ConstraintCriticConfig>>(pnh_);
+  dsrv_->setCallback(boost::bind(&ConstraintCritic::reconfigureCB, this, _1, _2));
 
-  getParam(power_, "cost_power", 1);
-  getParam(weight_, "cost_weight", 4.0);
-  RCLCPP_INFO(
-    logger_, "ConstraintCritic instantiated with %d power and %f weight.",
-    power_, weight_);
-
-  float vx_max, vy_max, vx_min;
-  getParentParam(vx_max, "vx_max", 0.5);
-  getParentParam(vy_max, "vy_max", 0.0);
-  getParentParam(vx_min, "vx_min", -0.35);
+  double vx_max, vy_max, vx_min;
+  parent_nh_.param<double>("vx_max", vx_max, 0.5);
+  parent_nh_.param<double>("vy_max", vy_max, 0.0);
+  parent_nh_.param<double>("vx_min", vx_min, -0.35);
 
   const float min_sgn = vx_min > 0.0 ? 1.0 : -1.0;
   max_vel_ = sqrtf(vx_max * vx_max + vy_max * vy_max);
   min_vel_ = min_sgn * sqrtf(vx_min * vx_min + vy_max * vy_max);
+}
+
+void ConstraintCritic::reconfigureCB(const mppi_controller::ConstraintCriticConfig& config, uint32_t /*unused*/)
+{
+  ROS_DEBUG_NAMED(name_, "Instantiated with %d power and %f weight.", power_, weight_);
+  power_ = config.cost_power;
+  weight_ = config.cost_weight;
 }
 
 void ConstraintCritic::score(CriticData & data)

@@ -19,6 +19,7 @@
 #include "mppi_controller/critic_function.hpp"
 #include "mppi_controller/models/state.hpp"
 #include "mppi_controller/tools/utils.hpp"
+#include "mppi_controller/GoalCriticConfig.h"
 
 namespace mppi::critics
 {
@@ -43,9 +44,13 @@ public:
   void score(CriticData & data) override;
 
 protected:
-  unsigned int power_{0};
-  float weight_{0};
-  float threshold_to_consider_{0};
+  double threshold_to_consider_{ 0 };
+  std::unique_ptr<dynamic_reconfigure::Server<mppi_controller::GoalCriticConfig>> dsrv_;
+
+  inline void reconfigureCB(mppi_controller::GoalCriticConfig& config, uint32_t level)
+  {
+    threshold_to_consider_ = config.threshold_to_consider;
+  }
 };
 
 }  // namespace mppi::critics

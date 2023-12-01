@@ -29,6 +29,8 @@
 #include "mppi_controller/models/state.hpp"
 
 #include <ros/ros.h>
+#include <dynamic_reconfigure/server.h>
+#include "mppi_controller/NoiseGeneratorConfig.h"
 
 namespace mppi
 {
@@ -77,7 +79,7 @@ public:
    * @param settings Settings of controller
    * @param is_holonomic If base is holonomic
    */
-  void reset(mppi::models::OptimizerSettings& settings, bool is_holonomic);
+  void reset(const mppi::models::OptimizerSettings& settings, bool is_holonomic);
 
 protected:
   /**
@@ -94,10 +96,13 @@ protected:
    */
   void generateNoisedControls();
 
+  void reconfigureCB(mppi_controller::NoiseGeneratorConfig& config, uint32_t level);
+
   xt::xtensor<float, 2> noises_vx_;
   xt::xtensor<float, 2> noises_vy_;
   xt::xtensor<float, 2> noises_wz_;
 
+  std::mutex param_mtx_;
   mppi::models::OptimizerSettings settings_;
   ros::NodeHandle pnh_;
   bool is_holonomic_;
@@ -105,6 +110,7 @@ protected:
   std::thread noise_thread_;
   std::condition_variable noise_cond_;
   std::mutex noise_lock_;
+  std::unique_ptr<dynamic_reconfigure::Server<mppi_controller::NoiseGeneratorConfig>> dsrv_;
   bool active_{ false }, ready_{ false }, regenerate_noises_{ false };
 };
 

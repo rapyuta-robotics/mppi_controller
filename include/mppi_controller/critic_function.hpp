@@ -23,6 +23,7 @@
 #include <string>
 
 #include "mppi_controller/critic_data.hpp"
+#include "mppi_controller/models/constraints.hpp"
 
 namespace mppi::critics
 {
@@ -72,6 +73,12 @@ public:
     ddynamic_reconfig_.emplace(pnh_);
     ddynamic_reconfig_->registerVariable<bool>("enabled", &enabled_, boost::bind(&CriticFunction::toggle, this, _1),
                                                "Enable/disable the critic");
+    ddynamic_reconfig_->registerVariable<double>(
+        "cost_power", &power_, boost::bind(&CriticFunction::setParam<double>, this, _1, "cost_power"), "Power of cost");
+    ddynamic_reconfig_->registerVariable<double>(
+        "cost_weight", &weight_, boost::bind(&CriticFunction::setParam<double>, this, _1, "cost_weight"),
+        "Weight of cost");
+    ddynamic_reconfig_->publishServicesTopics();
   }
 
   /**
@@ -93,9 +100,16 @@ public:
     return name_;
   }
 
+  inline virtual void updateConstraints(const models::ControlConstraints& constraints)
+  {
+    std::lock_guard<std::mutex> lock(constraint_mtx_);
+    constraints_ = constraints;
+  }
+
 private:
   inline void toggle(bool enabled)
   {
+    pnh_.setParam("enabled", enabled);
     if (enabled)
     {
       ROS_INFO_NAMED(name_, "Critic enabled");
@@ -107,13 +121,28 @@ private:
     }
   }
 
+  template <typename T>
+  inline void setParam(T param, const std::string& name)
+  {
+    T old_param;
+    ROS_INFO_COND_NAMED(pnh_.getParam(name, old_param), name_, "Setting %s to %f; was %f", name.c_str(), param,
+                        old_param);
+    pnh_.setParam(name, param);
+  }
+
 protected:
-  bool enabled_ = true;
   std::string name_;
   ros::NodeHandle parent_nh_;
   ros::NodeHandle pnh_;
   costmap_2d::Costmap2DROS* costmap_ros_;
   costmap_2d::Costmap2D* costmap_{ nullptr };
+
+  // common parameters to all critics
+  bool enabled_ = true;
+  double power_ = 0.0;
+  double weight_ = 0.0;
+  std::mutex constraint_mtx_;
+  models::ControlConstraints constraints_;
   std::optional<ddynamic_reconfigure::DDynamicReconfigure> ddynamic_reconfig_;
 };
 

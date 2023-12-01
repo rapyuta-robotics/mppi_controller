@@ -32,17 +32,18 @@ void MPPIController::initialize(std::string name, tf2_ros::Buffer* tf, costmap_2
   tf_buffer_ = tf;
   name_ = name;
 
-  dsrv_ = std::make_unique<dynamic_reconfigure::Server<mppi_controller::MPPIControllerConfig>>(pnh_);
+  // Configure composed objects
+  optimizer_.initialize(parent_nh_, name_, costmap_ros_, MPPIControllerConfig());
+  path_handler_.initialize(parent_nh_, name_, costmap_ros_, tf_buffer_);
+  planner_util_.initialize(tf, costmap_ros_->getCostmap(), costmap_ros_->getGlobalFrameID());
+
+  dsrv_ = std::make_unique<dynamic_reconfigure::Server<MPPIControllerConfig>>(pnh_);
   dsrv_->setCallback(boost::bind(&MPPIController::reconfigureCB, this, _1, _2));
 
   std::string odom_topic;
   pnh_.param<std::string>("odom_topic", odom_topic, "odom");
   odom_helper_.setOdomTopic(odom_topic);
 
-  // Configure composed objects
-  optimizer_.initialize(parent_nh_, name_, costmap_ros_);
-  path_handler_.initialize(parent_nh_, name_, costmap_ros_, tf_buffer_);
-  planner_util_.initialize(tf, costmap_ros_->getCostmap(), costmap_ros_->getGlobalFrameID());
   initialized_ = true;
 
   trajectory_visualizer_.on_configure(parent_nh_, name_, costmap_ros_->getGlobalFrameID());
@@ -227,6 +228,7 @@ void MPPIController::updateTolerances(double dist_tolerance, double angle_tolera
 void MPPIController::reconfigureCB(const mppi_controller::MPPIControllerConfig& config, uint32_t level)
 {
   visualize_ = config.visualize;
+  optimizer_.setParams(config);
 }
 
 }  // namespace mppi_controller

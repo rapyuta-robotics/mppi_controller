@@ -71,4 +71,11 @@ void CriticManager::evalTrajectoriesScores(CriticData& data) const
   }
 }
 
+void CriticManager::updateConstraints(const models::ControlConstraints& constraints)
+{
+  for (size_t q = 0; q < critics_.size(); q++)
+  {
+    critics_[q]->updateConstraints(constraints);
+  }
+}
 }  // namespace mppi

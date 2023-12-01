@@ -22,6 +22,9 @@
 #include <xtensor/xnoalias.hpp>
 #include <xtensor/xview.hpp>
 
+#include <dynamic_reconfigure/server.h>
+
+#include "mppi_controller/AckermannConfig.h"
 #include "mppi_controller/models/control_sequence.hpp"
 #include "mppi_controller/models/state.hpp"
 
@@ -85,37 +88,60 @@ class AckermannMotionModel : public MotionModel {
   /**
    * @brief Constructor for mppi::AckermannMotionModel
    */
-  explicit AckermannMotionModel(const ros::NodeHandle& pnh) {
-    pnh.param<double>("min_turning_r", min_turning_r_, 0.2);
-  }
+   explicit AckermannMotionModel(const ros::NodeHandle& parent_nh)
+   {
+     ros::NodeHandle pnh(parent_nh, "ackermann");
+     dsrv_ = std::make_unique<dynamic_reconfigure::Server<mppi_controller::AckermannConfig>>(pnh);
+     dsrv_->setCallback(boost::bind(&AckermannMotionModel::reconfigureCB, this, _1, _2));
+   }
 
-  /**
-   * @brief Whether the motion model is holonomic, using Y axis
-   * @return Bool If holonomic
-   */
-  bool isHolonomic() override { return false; }
+   /**
+    * @brief Whether the motion model is holonomic, using Y axis
+    * @return Bool If holonomic
+    */
+   bool isHolonomic() override
+   {
+     return false;
+   }
 
   /**
    * @brief Apply hard vehicle constraints to a control sequence
    * @param control_sequence Control sequence to apply constraints to
    */
   void applyConstraints(models::ControlSequence& control_sequence) override {
+    double min_turning_r;
+    {
+      std::lock_guard<std::mutex> lock(param_mtx_);
+      min_turning_r = min_turning_r_;
+    }
+
     auto& vx = control_sequence.vx;
     auto& wz = control_sequence.wz;
 
-    auto view =
-        xt::masked_view(wz, xt::fabs(vx) / xt::fabs(wz) < min_turning_r_);
-    view = xt::sign(wz) * vx / min_turning_r_;
+    auto view = xt::masked_view(wz, xt::fabs(vx) / xt::fabs(wz) < min_turning_r);
+    view = xt::sign(wz) * vx / min_turning_r;
   }
 
   /**
    * @brief Get minimum turning radius of ackermann drive
    * @return Minimum turning radius
    */
-  float getMinTurningRadius() { return static_cast<float>(min_turning_r_); }
+  float getMinTurningRadius()
+  {
+    std::lock_guard<std::mutex> lock(param_mtx_);
+    return static_cast<float>(min_turning_r_);
+  }
 
  private:
+   void reconfigureCB(const mppi_controller::AckermannConfig& config, uint32_t level)
+   {
+     std::lock_guard<std::mutex> lock(param_mtx_);
+     min_turning_r_ = config.min_turning_r;
+   }
+
   double min_turning_r_{0};
+  std::mutex param_mtx_;
+  std::unique_ptr<dynamic_reconfigure::Server<mppi_controller::AckermannConfig>> dsrv_;
 };
 
 /**

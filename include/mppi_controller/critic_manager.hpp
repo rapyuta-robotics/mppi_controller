@@ -29,6 +29,7 @@
 #include "mppi_controller/critic_data.hpp"
 #include "mppi_controller/critic_function.hpp"
 #include "mppi_controller/tools/utils.hpp"
+#include "mppi_controller/models/constraints.hpp"
 
 namespace mppi
 {
@@ -64,6 +65,8 @@ public:
    * functions
    */
   void evalTrajectoriesScores(CriticData& data) const;
+
+  void updateConstraints(const models::ControlConstraints& constraints);
 
 protected:
   /**

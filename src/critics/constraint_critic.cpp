@@ -19,24 +19,15 @@ namespace mppi::critics
 
 void ConstraintCritic::initialize()
 {
-  dsrv_ = std::make_unique<dynamic_reconfigure::Server<mppi_controller::ConstraintCriticConfig>>(pnh_);
-  dsrv_->setCallback(boost::bind(&ConstraintCritic::reconfigureCB, this, _1, _2));
-
-  double vx_max, vy_max, vx_min;
-  parent_nh_.param<double>("vx_max", vx_max, 0.5);
-  parent_nh_.param<double>("vy_max", vy_max, 0.0);
-  parent_nh_.param<double>("vx_min", vx_min, -0.35);
-
-  const float min_sgn = vx_min > 0.0 ? 1.0 : -1.0;
-  max_vel_ = sqrtf(vx_max * vx_max + vy_max * vy_max);
-  min_vel_ = min_sgn * sqrtf(vx_min * vx_min + vy_max * vy_max);
 }
 
-void ConstraintCritic::reconfigureCB(const mppi_controller::ConstraintCriticConfig& config, uint32_t /*unused*/)
+void ConstraintCritic::updateConstraints(const models::ControlConstraints& constraints)
 {
-  ROS_DEBUG_NAMED(name_, "Instantiated with %d power and %f weight.", power_, weight_);
-  power_ = config.cost_power;
-  weight_ = config.cost_weight;
+  std::lock_guard<std::mutex> lock(constraint_mtx_);
+  constraints_ = constraints;
+  const float min_sgn = constraints_.vx_min > 0.0 ? 1.0 : -1.0;
+  max_vel_ = sqrtf(constraints_.vx_max * constraints_.vx_max + constraints_.vy * constraints_.vy);
+  min_vel_ = min_sgn * sqrtf(constraints_.vx_min * constraints_.vx_min + constraints_.vy * constraints_.vy);
 }
 
 void ConstraintCritic::score(CriticData & data)

@@ -28,6 +28,7 @@
 #include <geometry_msgs/TwistStamped.h>
 #include <nav_msgs/Path.h>
 
+#include "mppi_controller/MPPIControllerConfig.h"
 #include "mppi_controller/models/optimizer_settings.hpp"
 #include "mppi_controller/motion_models.hpp"
 #include "mppi_controller/critic_manager.hpp"
@@ -65,8 +66,10 @@ public:
    * @param parent_nh NodeHandle of parent
    * @param name Name of plugin
    * @param costmap_ros Costmap2DROS object of environment
+   * @param config Config object for optimizer
    */
-  void initialize(const ros::NodeHandle& parent_nh, const std::string& name, costmap_2d::Costmap2DROS* costmap_ros);
+  void initialize(const ros::NodeHandle& parent_nh, const std::string& name, costmap_2d::Costmap2DROS* costmap_ros,
+                  const mppi_controller::MPPIControllerConfig& config);
 
   /**
    * @brief Shutdown for optimizer at process end
@@ -108,6 +111,11 @@ public:
    */
   void reset();
 
+  /**
+   * @brief Obtain the main controller's parameters
+   */
+  void setParams(const mppi_controller::MPPIControllerConfig& config);
+
 protected:
   /**
    * @brief Main function to generate, score, and return trajectories
@@ -124,15 +132,10 @@ protected:
                const nav_msgs::Path& plan);
 
   /**
-   * @brief Obtain the main controller's parameters
-   */
-  void getParams();
-
-  /**
    * @brief Set the motion model of the vehicle platform
-   * @param model Model string to use
+   * @param model Model to use (enum)
    */
-  void setMotionModel(const std::string& model);
+  void setMotionModel(const int model);
 
   /**
    * @brief Shift the optimal control sequence after processing for
@@ -218,10 +221,12 @@ protected:
 
 protected:
   ros::NodeHandle parent_nh_;
-  ros::NodeHandle pnh_;
+  std::string name_;
+
+  mutable std::mutex param_mtx_;
+
   costmap_2d::Costmap2DROS* costmap_ros_;
   costmap_2d::Costmap2D* costmap_;
-  std::string name_;
 
   std::shared_ptr<MotionModel> motion_model_;
 

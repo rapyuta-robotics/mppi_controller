@@ -139,7 +139,7 @@ protected:
   Optimizer optimizer_;
   PathHandler path_handler_;
   TrajectoryVisualizer trajectory_visualizer_;
-  std::unique_ptr<dynamic_reconfigure::Server<mppi_controller::MPPIControllerConfig>> dsrv_;
+  std::unique_ptr<dynamic_reconfigure::Server<MPPIControllerConfig>> dsrv_;
 
   bool initialized_{ false };
   bool visualize_{ false };

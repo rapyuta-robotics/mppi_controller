@@ -16,7 +16,6 @@
 #ifndef MPPI_CONTROLLER__CRITICS__CONSTRAINT_CRITIC_HPP_
 #define MPPI_CONTROLLER__CRITICS__CONSTRAINT_CRITIC_HPP_
 
-#include "mppi_controller/ConstraintCriticConfig.h"
 #include "mppi_controller/critic_function.hpp"
 #include "mppi_controller/models/state.hpp"
 #include "mppi_controller/tools/utils.hpp"
@@ -47,19 +46,17 @@ public:
   {
     return max_vel_;
   }
+
   float getMinVelConstraint()
   {
     return min_vel_;
   }
 
+  void updateConstraints(const models::ControlConstraints& constraints) override final;
+
 protected:
-  unsigned int power_{ 0 };
-  float weight_{ 0 };
   float min_vel_;
   float max_vel_;
-  std::unique_ptr<dynamic_reconfigure::Server<mppi_controller::ConstraintCriticConfig>> dsrv_;
-
-  void reconfigureCB(const mppi_controller::ConstraintCriticConfig& config, uint32_t level);
 };
 
 }  // namespace mppi::critics

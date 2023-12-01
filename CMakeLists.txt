@@ -68,8 +68,11 @@ endif()
 add_compile_options(-O3 -finline-limit=10000000 -ffp-contract=fast -ffast-math -mtune=generic)
 
 generate_dynamic_reconfigure_options(
-  cfg/ConstraintCritic.cfg
   cfg/MPPIController.cfg
+  cfg/Ackermann.cfg
+  cfg/NoiseGenerator.cfg
+  cfg/GoalAngleCritic.cfg
+  cfg/GoalCritic.cfg
 )
 
 catkin_package(
@@ -88,9 +91,11 @@ add_library(mppi_controller SHARED
 )
 add_library(mppi_critics SHARED
 
+  src/critics/goal_critic.cpp
+
   # src/critics/obstacles_critic.cpp
-  # src/critics/goal_critic.cpp
-  # src/critics/goal_angle_critic.cpp
+  src/critics/goal_angle_critic.cpp
+
   # src/critics/path_align_critic.cpp
   # src/critics/path_align_legacy_critic.cpp
   # src/critics/path_follow_critic.cpp

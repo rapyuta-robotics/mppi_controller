@@ -33,20 +33,18 @@ using namespace xt::placeholders;  // NOLINT
 using xt::evaluation_strategy::immediate;
 
 void Optimizer::initialize(const ros::NodeHandle& parent_nh, const std::string& name,
-                           costmap_2d::Costmap2DROS* costmap_ros)
+                           costmap_2d::Costmap2DROS* costmap_ros, const mppi_controller::MPPIControllerConfig& config)
 {
   parent_nh_ = parent_nh;
-  pnh_ = ros::NodeHandle(parent_nh_, name);
   name_ = name;
   costmap_ros_ = costmap_ros;
   costmap_ = costmap_ros_->getCostmap();
 
-  getParams();
-
   critic_manager_.on_configure(parent_nh_, name_, costmap_ros_);
-  noise_generator_.initialize(parent_nh_, settings_, isHolonomic(), name_);
 
-  reset();
+  models::OptimizerSettings default_settings;
+  noise_generator_.initialize(parent_nh_, default_settings, isHolonomic(), name_);
+  setParams(config);
 }
 
 void Optimizer::shutdown()
@@ -54,37 +52,31 @@ void Optimizer::shutdown()
   noise_generator_.shutdown();
 }
 
-void Optimizer::getParams()
+void Optimizer::setParams(const mppi_controller::MPPIControllerConfig& config)
 {
-  std::string motion_model_name;
+  {
+    std::lock_guard<std::mutex> lock(param_mtx_);
+    auto& s = settings_;
+    s.model_dt = config.model_dt;
+    s.time_steps = config.time_steps;
+    s.batch_size = config.batch_size;
+    s.iteration_count = config.iteration_count;
+    s.temperature = config.temperature;
+    s.gamma = config.gamma;
+    s.retry_attempt_limit = config.retry_attempt_limit;
+    s.base_constraints.vx_max = config.vx_max;
+    s.base_constraints.vx_min = config.vx_min;
+    s.base_constraints.vy = config.vy_max;
+    s.base_constraints.wz = config.wz_max;
+    s.sampling_std.vx = config.vx_std;
+    s.sampling_std.vy = config.vy_std;
+    s.sampling_std.wz = config.wz_std;
+    s.constraints = s.base_constraints;
+  }
 
-  auto& s = settings_;
-
-  pnh_.param<double>("model_dt", s.model_dt, 0.05);
-  pnh_.param<int>("time_steps", s.time_steps, 56);
-  pnh_.param<int>("batch_size", s.batch_size, 1000);
-  pnh_.param<int>("iteration_count", s.iteration_count, 1);
-  pnh_.param<double>("temperature", s.temperature, 0.3);
-  pnh_.param<double>("gamma", s.gamma, 0.015);
-  pnh_.param<int>("retry_attempt_limit", s.retry_attempt_limit, 1);
-
-  pnh_.param<double>("vx_max", s.base_constraints.vx_max, 0.5);
-  pnh_.param<double>("vx_min", s.base_constraints.vx_min, -0.35);
-  pnh_.param<double>("vy_max", s.base_constraints.vy, 0.5);
-  pnh_.param<double>("wz_max", s.base_constraints.wz, 1.9);
-  pnh_.param<double>("vx_std", s.sampling_std.vx, 0.2);
-  pnh_.param<double>("vy_std", s.sampling_std.vy, 0.2);
-  pnh_.param<double>("wz_std", s.sampling_std.wz, 0.4);
-
-  pnh_.param<std::string>("motion_model", motion_model_name, std::string("DiffDrive"));
-
-  s.constraints = s.base_constraints;
-  setMotionModel(motion_model_name);
+  setMotionModel(config.motion_model);
+  setOffset(config.controller_frequency);
   reset();
-
-  double controller_frequency;
-  parent_nh_.param<double>("controller_frequency", controller_frequency, 0.0);
-  setOffset(controller_frequency);
 }
 
 void Optimizer::setOffset(double controller_frequency)
@@ -92,29 +84,45 @@ void Optimizer::setOffset(double controller_frequency)
   const double controller_period = 1.0 / controller_frequency;
   constexpr double eps = 1e-6;
 
-  if ((controller_period + eps) < settings_.model_dt) {
-    ROS_WARN("Controller period is less then model dt, consider setting it equal");
-  } else if (abs(controller_period - settings_.model_dt) < eps) {
-    ROS_INFO("Controller period is equal to model dt. Control sequence shifting is ON");
-    settings_.shift_control_sequence = true;
-  } else {
-    throw std::runtime_error("Controller period more then model dt, set it equal to model dt");
+  {
+    std::lock_guard<std::mutex> lock(param_mtx_);
+    if ((controller_period + eps) < settings_.model_dt)
+    {
+      ROS_WARN("Controller period is less then model dt, consider setting it equal");
+    }
+    else if (abs(controller_period - settings_.model_dt) < eps)
+    {
+      ROS_INFO("Controller period is equal to model dt. Control sequence shifting is ON");
+      settings_.shift_control_sequence = true;
+    }
+    else
+    {
+      ROS_WARN("Controller period is more then model dt, we ignore and consider it equal");
+      settings_.shift_control_sequence = true;
+    }
   }
 }
 
 void Optimizer::reset()
 {
-  state_.reset(settings_.batch_size, settings_.time_steps);
-  control_sequence_.reset(settings_.time_steps);
+  mppi::models::OptimizerSettings settings_copy;
+  {
+    std::lock_guard<std::mutex> lock(param_mtx_);
+    settings_copy = settings_;
+  }
+
+  state_.reset(settings_copy.batch_size, settings_copy.time_steps);
+  control_sequence_.reset(settings_copy.time_steps);
   control_history_[0] = {0.0, 0.0, 0.0};
   control_history_[1] = {0.0, 0.0, 0.0};
   control_history_[2] = {0.0, 0.0, 0.0};
   control_history_[3] = {0.0, 0.0, 0.0};
 
-  costs_ = xt::zeros<float>({settings_.batch_size});
-  generated_trajectories_.reset(settings_.batch_size, settings_.time_steps);
+  costs_ = xt::zeros<float>({ settings_copy.batch_size });
+  generated_trajectories_.reset(settings_copy.batch_size, settings_copy.time_steps);
 
-  noise_generator_.reset(settings_, isHolonomic());
+  noise_generator_.reset(settings_copy, isHolonomic());
+  critic_manager_.updateConstraints(settings_copy.constraints);
   ROS_INFO("Optimizer reset");
 }
 
@@ -137,10 +145,17 @@ uint32_t Optimizer::evalControl(const geometry_msgs::PoseStamped& robot_pose, co
     }
   }
 
-  utils::savitskyGolayFilter(control_sequence_, control_history_, settings_);
+  mppi::models::OptimizerSettings settings;
+  {
+    std::lock_guard<std::mutex> lock(param_mtx_);
+    settings = settings_;
+  }
+
+  utils::savitskyGolayFilter(control_sequence_, control_history_, settings);
   cmd_vel = getControlFromSequenceAsTwist(plan.header);
 
-  if (settings_.shift_control_sequence) {
+  if (settings.shift_control_sequence)
+  {
     shiftControlSequence();
   }
 
@@ -149,7 +164,14 @@ uint32_t Optimizer::evalControl(const geometry_msgs::PoseStamped& robot_pose, co
 
 void Optimizer::optimize()
 {
-  for (size_t i = 0; i < settings_.iteration_count; ++i) {
+  int iteration_count;
+  {
+    std::lock_guard<std::mutex> lock(param_mtx_);
+    iteration_count = settings_.iteration_count;
+  }
+
+  for (size_t i = 0; i < iteration_count; ++i)
+  {
     generateNoisedTrajectories();
     critic_manager_.evalTrajectoriesScores(critics_data_);
     updateControlSequence();
@@ -167,7 +189,14 @@ bool Optimizer::fallback(bool fail, uint32_t& error)
 
   reset();
 
-  if (++counter > settings_.retry_attempt_limit) {
+  int retry_attempt_limit;
+  {
+    std::lock_guard<std::mutex> lock(param_mtx_);
+    retry_attempt_limit = settings_.retry_attempt_limit;
+  }
+
+  if (++counter > retry_attempt_limit)
+  {
     counter = 0;
     ROS_ERROR_NAMED("Optimizer", "Optimizer fail to compute path");
     error = mbf_msgs::ExePathResult::NO_VALID_CMD;
@@ -224,14 +253,18 @@ bool Optimizer::isHolonomic() const {return motion_model_->isHolonomic();}
 
 void Optimizer::applyControlSequenceConstraints()
 {
-  auto & s = settings_;
-
-  if (isHolonomic()) {
-    control_sequence_.vy = xt::clip(control_sequence_.vy, -s.constraints.vy, s.constraints.vy);
+  mppi::models::ControlConstraints constraints;
+  {
+    std::lock_guard<std::mutex> lock(param_mtx_);
+    constraints = settings_.constraints;
   }
 
-  control_sequence_.vx = xt::clip(control_sequence_.vx, s.constraints.vx_min, s.constraints.vx_max);
-  control_sequence_.wz = xt::clip(control_sequence_.wz, -s.constraints.wz, s.constraints.wz);
+  if (isHolonomic()) {
+    control_sequence_.vy = xt::clip(control_sequence_.vy, -constraints.vy, constraints.vy);
+  }
+
+  control_sequence_.vx = xt::clip(control_sequence_.vx, constraints.vx_min, constraints.vx_max);
+  control_sequence_.wz = xt::clip(control_sequence_.wz, -constraints.wz, constraints.wz);
 
   motion_model_->applyConstraints(control_sequence_);
 }
@@ -260,10 +293,14 @@ void Optimizer::propagateStateVelocitiesFromInitials(
   motion_model_->predict(state);
 }
 
-void Optimizer::integrateStateVelocities(
-  xt::xtensor<float, 2> & trajectory,
-  const xt::xtensor<float, 2> & sequence) const
+void Optimizer::integrateStateVelocities(xt::xtensor<float, 2>& trajectory, const xt::xtensor<float, 2>& sequence) const
 {
+  double model_dt;
+  {
+    std::lock_guard<std::mutex> lock(param_mtx_);
+    model_dt = settings_.model_dt;
+  }
+
   float initial_yaw = tf2::getYaw(state_.pose.pose.orientation);
 
   const auto vx = xt::view(sequence, xt::all(), 0);
@@ -274,7 +311,7 @@ void Optimizer::integrateStateVelocities(
   auto traj_y = xt::view(trajectory, xt::all(), 1);
   auto traj_yaws = xt::view(trajectory, xt::all(), 2);
 
-  xt::noalias(traj_yaws) = xt::cumsum(wz * settings_.model_dt, 0) + initial_yaw;
+  xt::noalias(traj_yaws) = xt::cumsum(wz * model_dt, 0) + initial_yaw;
 
   auto && yaw_cos = xt::xtensor<float, 1>::from_shape(traj_yaws.shape());
   auto && yaw_sin = xt::xtensor<float, 1>::from_shape(traj_yaws.shape());
@@ -294,18 +331,21 @@ void Optimizer::integrateStateVelocities(
     dy = dy + vy * yaw_cos;
   }
 
-  xt::noalias(traj_x) = state_.pose.pose.position.x + xt::cumsum(dx * settings_.model_dt, 0);
-  xt::noalias(traj_y) = state_.pose.pose.position.y + xt::cumsum(dy * settings_.model_dt, 0);
+  xt::noalias(traj_x) = state_.pose.pose.position.x + xt::cumsum(dx * model_dt, 0);
+  xt::noalias(traj_y) = state_.pose.pose.position.y + xt::cumsum(dy * model_dt, 0);
 }
 
-void Optimizer::integrateStateVelocities(
-  models::Trajectories & trajectories,
-  const models::State & state) const
+void Optimizer::integrateStateVelocities(models::Trajectories& trajectories, const models::State& state) const
 {
+  double model_dt;
+  {
+    std::lock_guard<std::mutex> lock(param_mtx_);
+    model_dt = settings_.model_dt;
+  }
+
   const float initial_yaw = tf2::getYaw(state.pose.pose.orientation);
 
-  xt::noalias(trajectories.yaws) =
-    xt::cumsum(state.wz * settings_.model_dt, 1) + initial_yaw;
+  xt::noalias(trajectories.yaws) = xt::cumsum(state.wz * model_dt, 1) + initial_yaw;
 
   const auto yaws_cutted = xt::view(trajectories.yaws, xt::all(), xt::range(0, -1));
 
@@ -324,17 +364,21 @@ void Optimizer::integrateStateVelocities(
     dy = dy + state.vy * yaw_cos;
   }
 
-  xt::noalias(trajectories.x) = state.pose.pose.position.x +
-    xt::cumsum(dx * settings_.model_dt, 1);
-  xt::noalias(trajectories.y) = state.pose.pose.position.y +
-    xt::cumsum(dy * settings_.model_dt, 1);
+  xt::noalias(trajectories.x) = state.pose.pose.position.x + xt::cumsum(dx * model_dt, 1);
+  xt::noalias(trajectories.y) = state.pose.pose.position.y + xt::cumsum(dy * model_dt, 1);
 }
 
 xt::xtensor<float, 2> Optimizer::getOptimizedTrajectory()
 {
-  auto && sequence =
-    xt::xtensor<float, 2>::from_shape({settings_.time_steps, isHolonomic() ? 3u : 2u});
-  auto && trajectories = xt::xtensor<float, 2>::from_shape({settings_.time_steps, 3});
+  int time_steps;
+  {
+    std::lock_guard<std::mutex> lock(param_mtx_);
+    time_steps = settings_.time_steps;
+  }
+
+  auto&& sequence =
+      xt::xtensor<float, 2>::from_shape({ static_cast<long unsigned int>(time_steps), isHolonomic() ? 3u : 2u });
+  auto&& trajectories = xt::xtensor<float, 2>::from_shape({ static_cast<long unsigned int>(time_steps), 3 });
 
   xt::noalias(xt::view(sequence, xt::all(), 0)) = control_sequence_.vx;
   xt::noalias(xt::view(sequence, xt::all(), 1)) = control_sequence_.wz;
@@ -349,26 +393,30 @@ xt::xtensor<float, 2> Optimizer::getOptimizedTrajectory()
 
 void Optimizer::updateControlSequence()
 {
-  auto & s = settings_;
+  mppi::models::OptimizerSettings settings_copy;
+  {
+    std::lock_guard<std::mutex> lock(param_mtx_);
+    settings_copy = settings_;
+  }
+
   auto bounded_noises_vx = state_.cvx - control_sequence_.vx;
   auto bounded_noises_wz = state_.cwz - control_sequence_.wz;
   xt::noalias(costs_) +=
-    s.gamma / powf(s.sampling_std.vx, 2) * xt::sum(
-    xt::view(control_sequence_.vx, xt::newaxis(), xt::all()) * bounded_noises_vx, 1, immediate);
+      settings_copy.gamma / powf(settings_copy.sampling_std.vx, 2) *
+      xt::sum(xt::view(control_sequence_.vx, xt::newaxis(), xt::all()) * bounded_noises_vx, 1, immediate);
   xt::noalias(costs_) +=
-    s.gamma / powf(s.sampling_std.wz, 2) * xt::sum(
-    xt::view(control_sequence_.wz, xt::newaxis(), xt::all()) * bounded_noises_wz, 1, immediate);
+      settings_copy.gamma / powf(settings_copy.sampling_std.wz, 2) *
+      xt::sum(xt::view(control_sequence_.wz, xt::newaxis(), xt::all()) * bounded_noises_wz, 1, immediate);
 
   if (isHolonomic()) {
     auto bounded_noises_vy = state_.cvy - control_sequence_.vy;
     xt::noalias(costs_) +=
-      s.gamma / powf(s.sampling_std.vy, 2) * xt::sum(
-      xt::view(control_sequence_.vy, xt::newaxis(), xt::all()) * bounded_noises_vy,
-      1, immediate);
+        settings_copy.gamma / powf(settings_copy.sampling_std.vy, 2) *
+        xt::sum(xt::view(control_sequence_.vy, xt::newaxis(), xt::all()) * bounded_noises_vy, 1, immediate);
   }
 
   auto && costs_normalized = costs_ - xt::amin(costs_, immediate);
-  auto && exponents = xt::eval(xt::exp(-1 / settings_.temperature * costs_normalized));
+  auto&& exponents = xt::eval(xt::exp(-1 / settings_copy.temperature * costs_normalized));
   auto && softmaxes = xt::eval(exponents / xt::sum(exponents, immediate));
   auto && softmaxes_extened = xt::eval(xt::view(softmaxes, xt::all(), xt::newaxis()));
 
@@ -396,19 +444,25 @@ geometry_msgs::TwistStamped Optimizer::getControlFromSequenceAsTwist(const std_m
   return utils::toTwistStamped(vx, wz, header);
 }
 
-void Optimizer::setMotionModel(const std::string & model)
+void Optimizer::setMotionModel(const int model)
 {
-  if (model == "DiffDrive") {
-    motion_model_ = std::make_shared<DiffDriveMotionModel>();
-  } else if (model == "Omni") {
-    motion_model_ = std::make_shared<OmniMotionModel>();
-  } else if (model == "Ackermann") {
-    motion_model_ = std::make_shared<AckermannMotionModel>(parent_nh_);
-  } else {
-    ROS_WARN_NAMED("Optimizer",
-                   "Model %s is not valid! Valid options are DiffDrive, Omni, or Ackermann; defaulting to DiffDrive",
-                   model.c_str());
-    motion_model_ = std::make_shared<DiffDriveMotionModel>();
+  switch (model)
+  {
+    case mppi_controller::MPPIController_DiffDrive:
+      motion_model_ = std::make_shared<DiffDriveMotionModel>();
+      break;
+    case mppi_controller::MPPIController_Omni:
+      motion_model_ = std::make_shared<OmniMotionModel>();
+      break;
+    case mppi_controller::MPPIController_Ackermann:
+      motion_model_ = std::make_shared<AckermannMotionModel>(parent_nh_);
+      break;
+    default:
+      ROS_WARN_NAMED("Optimizer",
+                     "Model %d is not valid! Valid options are DiffDrive, Omni, or Ackermann; defaulting to DiffDrive",
+                     model);
+      motion_model_ = std::make_shared<DiffDriveMotionModel>();
+      break;
   }
 }
 

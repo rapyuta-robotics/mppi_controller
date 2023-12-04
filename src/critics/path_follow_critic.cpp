@@ -22,14 +22,8 @@ namespace mppi::critics
 
 void PathFollowCritic::initialize()
 {
-  auto getParam = parameters_handler_->getParamGetter(name_);
-
-  getParam(
-    threshold_to_consider_,
-    "threshold_to_consider", 1.4);
-  getParam(offset_from_furthest_, "offset_from_furthest", 6);
-  getParam(power_, "cost_power", 1);
-  getParam(weight_, "cost_weight", 5.0);
+  dsrv_ = std::make_unique<dynamic_reconfigure::Server<mppi_controller::PathFollowCriticConfig>>(pnh_);
+  dsrv_->setCallback(boost::bind(&PathFollowCritic::reconfigureCB, this, _1, _2));
 }
 
 void PathFollowCritic::score(CriticData & data)
@@ -74,6 +68,4 @@ void PathFollowCritic::score(CriticData & data)
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(
-  mppi::critics::PathFollowCritic,
-  mppi::critics::CriticFunction)
+PLUGINLIB_EXPORT_CLASS(mppi::critics::PathFollowCritic, mppi::critics::CriticFunction)

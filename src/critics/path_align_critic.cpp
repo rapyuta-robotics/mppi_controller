@@ -25,22 +25,8 @@ using xt::evaluation_strategy::immediate;
 
 void PathAlignCritic::initialize()
 {
-  auto getParam = parameters_handler_->getParamGetter(name_);
-  getParam(power_, "cost_power", 1);
-  getParam(weight_, "cost_weight", 10.0);
-
-  getParam(max_path_occupancy_ratio_, "max_path_occupancy_ratio", 0.07);
-  getParam(offset_from_furthest_, "offset_from_furthest", 20);
-  getParam(trajectory_point_step_, "trajectory_point_step", 4);
-  getParam(
-    threshold_to_consider_,
-    "threshold_to_consider", 0.5);
-  getParam(use_path_orientations_, "use_path_orientations", false);
-
-  RCLCPP_INFO(
-    logger_,
-    "ReferenceTrajectoryCritic instantiated with %d power and %f weight",
-    power_, weight_);
+  dsrv_ = std::make_unique<dynamic_reconfigure::Server<mppi_controller::PathAlignCriticConfig>>(pnh_);
+  dsrv_->setCallback(boost::bind(&PathAlignCritic::reconfigureCB, this, _1, _2));
 }
 
 void PathAlignCritic::score(CriticData & data)
@@ -134,10 +120,17 @@ void PathAlignCritic::score(CriticData & data)
   data.costs += xt::pow(std::move(cost) * weight_, power_);
 }
 
+void PathAlignCritic::reconfigureCB(mppi_controller::PathAlignCriticConfig& config, uint32_t level)
+{
+  offset_from_furthest_ = config.offset_from_furthest;
+  trajectory_point_step_ = config.trajectory_point_step;
+  threshold_to_consider_ = config.threshold_to_consider;
+  max_path_occupancy_ratio_ = config.max_path_occupancy_ratio;
+  use_path_orientations_ = config.use_path_orientations;
+}
+
 }  // namespace mppi::critics
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(
-  mppi::critics::PathAlignCritic,
-  mppi::critics::CriticFunction)
+PLUGINLIB_EXPORT_CLASS(mppi::critics::PathAlignCritic, mppi::critics::CriticFunction)

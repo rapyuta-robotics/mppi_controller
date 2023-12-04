@@ -16,9 +16,10 @@
 #define MPPI_CONTROLLER__CRITICS__OBSTACLES_CRITIC_HPP_
 
 #include <memory>
-#include "costmap_2d/footprint_collision_checker.hpp"
-#include "costmap_2d/inflation_layer.hpp"
+#include <costmap_2d/inflation_layer.h>
+#include <base_local_planner/costmap_model.h>
 
+#include "mppi_controller/ObstacleCriticConfig.h"
 #include "mppi_controller/critic_function.hpp"
 #include "mppi_controller/models/state.hpp"
 #include "mppi_controller/tools/utils.hpp"
@@ -79,11 +80,14 @@ protected:
     * @return double circumscribed cost, any higher than this and need to do full footprint collision checking
     * since some element of the robot could be in collision
     */
-  float findCircumscribedCost(std::shared_ptr<costmap_2d::Costmap2DROS> costmap);
+  float findCircumscribedCost(costmap_2d::Costmap2DROS* costmap);
+
+private:
+  void reconfigureCB(mppi_controller::ObstacleCriticConfig& config, uint32_t level);
 
 protected:
-  costmap_2d::FootprintCollisionChecker<costmap_2d::Costmap2D *>
-  collision_checker_{nullptr};
+  std::unique_ptr<dynamic_reconfigure::Server<mppi_controller::ObstacleCriticConfig>> dsrv_;
+  std::unique_ptr<base_local_planner::CostmapModel> world_model_;
 
   bool consider_footprint_{true};
   float collision_cost_{0};

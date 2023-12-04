@@ -19,20 +19,14 @@ namespace mppi::critics
 
 void TwirlingCritic::initialize()
 {
-  auto getParam = parameters_handler_->getParamGetter(name_);
-
-  getParam(power_, "cost_power", 1);
-  getParam(weight_, "cost_weight", 10.0);
-
-  RCLCPP_INFO(
-    logger_, "TwirlingCritic instantiated with %d power and %f weight.", power_, weight_);
+  dsrv_ = std::make_unique<dynamic_reconfigure::Server<mppi_controller::TwirlingCriticConfig>>(pnh_);
+  dsrv_->setCallback(boost::bind(&TwirlingCritic::reconfigureCB, this, _1, _2));
 }
 
 void TwirlingCritic::score(CriticData & data)
 {
   using xt::evaluation_strategy::immediate;
-  if (!enabled_ ||
-    utils::withinPositionGoalTolerance(data.goal_checker, data.state.pose.pose, data.path))
+  if (!enabled_ || utils::withinPositionGoalTolerance(threshold_to_consider_, data.state.pose.pose, data.path))
   {
     return;
   }
@@ -45,6 +39,4 @@ void TwirlingCritic::score(CriticData & data)
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(
-  mppi::critics::TwirlingCritic,
-  mppi::critics::CriticFunction)
+PLUGINLIB_EXPORT_CLASS(mppi::critics::TwirlingCritic, mppi::critics::CriticFunction)

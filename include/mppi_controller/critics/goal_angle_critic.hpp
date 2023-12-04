@@ -47,6 +47,7 @@ protected:
   double threshold_to_consider_{ 0 };
   std::unique_ptr<dynamic_reconfigure::Server<mppi_controller::GoalAngleCriticConfig>> dsrv_;
 
+private:
   inline void reconfigureCB(mppi_controller::GoalAngleCriticConfig& config, uint32_t level)
   {
     threshold_to_consider_ = config.threshold_to_consider;

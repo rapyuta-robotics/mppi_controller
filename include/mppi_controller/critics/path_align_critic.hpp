@@ -19,6 +19,8 @@
 #include "mppi_controller/models/state.hpp"
 #include "mppi_controller/tools/utils.hpp"
 
+#include <mppi_controller/PathAlignCriticConfig.h>
+
 namespace mppi::critics
 {
 
@@ -44,14 +46,16 @@ public:
    */
   void score(CriticData & data) override;
 
+private:
+  void reconfigureCB(mppi_controller::PathAlignCriticConfig& config, uint32_t level);
+
 protected:
+  std::unique_ptr<dynamic_reconfigure::Server<mppi_controller::PathAlignCriticConfig>> dsrv_;
   size_t offset_from_furthest_{0};
   int trajectory_point_step_{0};
   float threshold_to_consider_{0};
   float max_path_occupancy_ratio_{0};
-  bool use_path_orientations_{false};
-  unsigned int power_{0};
-  float weight_{0};
+  bool use_path_orientations_{ false };
 };
 
 }  // namespace mppi::critics

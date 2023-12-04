@@ -19,7 +19,7 @@
 #include "mppi_controller/critic_function.hpp"
 #include "mppi_controller/models/state.hpp"
 #include "mppi_controller/tools/utils.hpp"
-#include "nav2_core/controller_exceptions.hpp"
+#include <mppi_controller/PathAngleCriticConfig.h>
 
 namespace mppi::critics
 {
@@ -71,7 +71,10 @@ public:
    */
   void score(CriticData & data) override;
 
+  void updateConstraints(const models::ControlConstraints& constraints) override;
+
 protected:
+  std::unique_ptr<dynamic_reconfigure::Server<mppi_controller::PathAngleCriticConfig>> dsrv_;
   float max_angle_to_furthest_{0};
   float threshold_to_consider_{0};
 
@@ -81,6 +84,15 @@ protected:
 
   unsigned int power_{0};
   float weight_{0};
+
+private:
+  inline void reconfigureCB(mppi_controller::PathAngleCriticConfig& config, uint32_t level)
+  {
+    max_angle_to_furthest_ = config.max_angle_to_furthest;
+    threshold_to_consider_ = config.threshold_to_consider;
+    offset_from_furthest_ = config.offset_from_furthest;
+    mode_ = static_cast<PathAngleMode>(config.mode);
+  }
 };
 
 }  // namespace mppi::critics

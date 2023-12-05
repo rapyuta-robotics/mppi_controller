@@ -39,8 +39,6 @@ void PathAngleCritic::updateConstraints(const models::ControlConstraints& constr
 
 void PathAngleCritic::initialize()
 {
-  dsrv_ = std::make_unique<dynamic_reconfigure::Server<mppi_controller::PathAngleCriticConfig>>(pnh_);
-  dsrv_->setCallback(boost::bind(&PathAngleCritic::reconfigureCB, this, _1, _2));
 }
 
 void PathAngleCritic::score(CriticData & data)
@@ -123,4 +121,4 @@ void PathAngleCritic::score(CriticData & data)
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(mppi::critics::PathAngleCritic, mppi::critics::CriticFunction)
+PLUGINLIB_EXPORT_CLASS(mppi::critics::PathAngleCritic, mppi::critics::CriticBase)

@@ -19,6 +19,7 @@
 #include "mppi_controller/critic_function.hpp"
 #include "mppi_controller/models/state.hpp"
 #include "mppi_controller/tools/utils.hpp"
+#include "mppi_controller/BaseCriticConfig.h"
 
 namespace mppi::critics
 {
@@ -27,7 +28,7 @@ namespace mppi::critics
  * @class mppi::critics::ConstraintCritic
  * @brief Critic objective function for enforcing feasible constraints
  */
-class ConstraintCritic : public CriticFunction
+class ConstraintCritic : public CriticFunction<mppi_controller::BaseCriticConfig>
 {
 public:
   /**

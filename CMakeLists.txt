@@ -68,6 +68,7 @@ endif()
 add_compile_options(-O3 -finline-limit=10000000 -ffp-contract=fast -ffast-math -mtune=generic)
 
 generate_dynamic_reconfigure_options(
+  cfg/BaseCritic.cfg
   cfg/MPPIController.cfg
   cfg/Ackermann.cfg
   cfg/NoiseGenerator.cfg

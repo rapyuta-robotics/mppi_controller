@@ -17,7 +17,7 @@
 namespace mppi
 {
 
-CriticManager::CriticManager() : loader_("mppi_controller", "mppi::critics::CriticFunction")
+CriticManager::CriticManager() : loader_("mppi_controller", "mppi::critics::CriticBase")
 {
 }
 

@@ -19,8 +19,6 @@ namespace mppi::critics
 
 void PreferForwardCritic::initialize()
 {
-  dsrv_ = std::make_unique<dynamic_reconfigure::Server<mppi_controller::PreferForwardCriticConfig>>(pnh_);
-  dsrv_->setCallback(boost::bind(&PreferForwardCritic::reconfigureCB, this, _1, _2));
 }
 
 void PreferForwardCritic::score(CriticData & data)
@@ -43,4 +41,4 @@ void PreferForwardCritic::score(CriticData & data)
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(mppi::critics::PreferForwardCritic, mppi::critics::CriticFunction)
+PLUGINLIB_EXPORT_CLASS(mppi::critics::PreferForwardCritic, mppi::critics::CriticBase)

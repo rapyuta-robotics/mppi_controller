@@ -28,7 +28,7 @@ namespace mppi::critics
  * @class mppi::critics::ConstraintCritic
  * @brief Critic objective function for driving towards goal
  */
-class GoalCritic : public CriticFunction
+class GoalCritic : public CriticFunction<mppi_controller::GoalCriticConfig>
 {
 public:
   /**
@@ -45,11 +45,11 @@ public:
 
 protected:
   double threshold_to_consider_{ 0 };
-  std::unique_ptr<dynamic_reconfigure::Server<mppi_controller::GoalCriticConfig>> dsrv_;
 
   inline void reconfigureCB(mppi_controller::GoalCriticConfig& config, uint32_t level)
   {
     threshold_to_consider_ = config.threshold_to_consider;
+    CriticFunction::reconfigureCB(config, level);
   }
 };
 

@@ -17,7 +17,7 @@
 #define MPPI_CONTROLLER__CRITIC_FUNCTION_HPP_
 
 #include <costmap_2d/costmap_2d_ros.h>
-#include <ddynamic_reconfigure/ddynamic_reconfigure.h>
+#include "mppi_controller/BaseCriticConfig.h"
 
 #include <memory>
 #include <string>
@@ -38,11 +38,23 @@ struct CollisionCost
   bool using_footprint{ false };
 };
 
+class CriticBase
+{
+public:
+  virtual void on_configure(const ros::NodeHandle& parent_nh, const std::string& name,
+                            costmap_2d::Costmap2DROS* costmap_ros) = 0;
+  virtual void score(CriticData& data) = 0;
+  virtual void initialize() = 0;
+  virtual std::string getName() = 0;
+  virtual void updateConstraints(const models::ControlConstraints& constraints) = 0;
+};
+
 /**
  * @class mppi::critics::CriticFunction
  * @brief Abstract critic objective function to score trajectories
  */
-class CriticFunction
+template <typename Config = mppi_controller::BaseCriticConfig>
+class CriticFunction : public CriticBase
 {
 public:
   /**
@@ -62,7 +74,8 @@ public:
    * @param costmap_ros Costmap2DROS object of environment
    * @param dynamic_parameter_handler Parameter handler object
    */
-  void on_configure(const ros::NodeHandle& parent_nh, const std::string& name, costmap_2d::Costmap2DROS* costmap_ros)
+  void on_configure(const ros::NodeHandle& parent_nh, const std::string& name,
+                    costmap_2d::Costmap2DROS* costmap_ros) override final
   {
     name_ = name;
     parent_nh_ = parent_nh;
@@ -70,17 +83,10 @@ public:
     costmap_ros_ = costmap_ros;
     costmap_ = costmap_ros_->getCostmap();
 
-    ddynamic_reconfig_.emplace(pnh_);
-    ddynamic_reconfig_->registerVariable<bool>("enabled", &enabled_, boost::bind(&CriticFunction::toggle, this, _1),
-                                               "Enable/disable the critic");
-    ddynamic_reconfig_->registerVariable<double>(
-        "cost_power", &power_, boost::bind(&CriticFunction::setParam<double>, this, _1, "cost_power"), "Power of cost");
-    ddynamic_reconfig_->registerVariable<double>(
-        "cost_weight", &weight_, boost::bind(&CriticFunction::setParam<double>, this, _1, "cost_weight"),
-        "Weight of cost");
+    dsrv_ = std::make_unique<dynamic_reconfigure::Server<Config>>(pnh_);
+    dsrv_->setCallback(boost::bind(&CriticFunction::reconfigureCB, this, _1, _2));
 
     initialize();
-    ddynamic_reconfig_->publishServicesTopics();
   }
 
   /**
@@ -97,7 +103,7 @@ public:
   /**
    * @brief Get name of critic
    */
-  std::string getName()
+  std::string getName() override final
   {
     return name_;
   }
@@ -108,30 +114,6 @@ public:
     constraints_ = constraints;
   }
 
-private:
-  inline void toggle(bool enabled)
-  {
-    pnh_.setParam("enabled", enabled);
-    if (enabled)
-    {
-      ROS_INFO_NAMED(name_, "Critic enabled");
-      initialize();
-    }
-    else
-    {
-      ROS_INFO_NAMED(name_, "Critic enabled");
-    }
-  }
-
-  template <typename T>
-  inline void setParam(T param, const std::string& name)
-  {
-    T old_param;
-    ROS_INFO_COND_NAMED(pnh_.getParam(name, old_param), name_, "Setting %s to %f; was %f", name.c_str(), param,
-                        old_param);
-    pnh_.setParam(name, param);
-  }
-
 protected:
   std::string name_;
   ros::NodeHandle parent_nh_;
@@ -140,12 +122,20 @@ protected:
   costmap_2d::Costmap2D* costmap_{ nullptr };
 
   // common parameters to all critics
-  bool enabled_ = true;
+  bool enabled_ = false;
   double power_ = 0.0;
   double weight_ = 0.0;
   std::mutex constraint_mtx_;
   models::ControlConstraints constraints_;
-  std::optional<ddynamic_reconfigure::DDynamicReconfigure> ddynamic_reconfig_;
+
+  std::unique_ptr<dynamic_reconfigure::Server<Config>> dsrv_;
+
+  virtual void reconfigureCB(Config& config, uint32_t level)
+  {
+    power_ = config.cost_power;
+    weight_ = config.cost_weight;
+    enabled_ = config.enabled;
+  }
 };
 
 }  // namespace mppi::critics

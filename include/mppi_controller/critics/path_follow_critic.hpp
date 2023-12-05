@@ -32,7 +32,7 @@ namespace mppi::critics
  * A higher weight here with an offset > 1 will accelerate the samples to full speed
  * faster and push the follow point further ahead, creating some shortcutting.
  */
-class PathFollowCritic : public CriticFunction
+class PathFollowCritic : public CriticFunction<mppi_controller::PathFollowCriticConfig>
 {
 public:
   /**
@@ -49,8 +49,6 @@ public:
   void score(CriticData & data) override;
 
 protected:
-  std::unique_ptr<dynamic_reconfigure::Server<mppi_controller::PathFollowCriticConfig>> dsrv_;
-
   int offset_from_furthest_{ 0 };
   double threshold_to_consider_{ 0.0 };
 
@@ -59,6 +57,7 @@ private:
   {
     offset_from_furthest_ = config.offset_from_furthest;
     threshold_to_consider_ = config.threshold_to_consider;
+    CriticFunction::reconfigureCB(config, level);
   }
 };
 

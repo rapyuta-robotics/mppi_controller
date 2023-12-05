@@ -55,7 +55,7 @@ std::string modeToStr(const PathAngleMode & mode)
  * @brief Critic objective function for aligning to path in cases of extreme misalignment
  * or turning
  */
-class PathAngleCritic : public CriticFunction
+class PathAngleCritic : public CriticFunction<mppi_controller::PathAngleCriticConfig>
 {
 public:
   /**
@@ -74,7 +74,6 @@ public:
   void updateConstraints(const models::ControlConstraints& constraints) override;
 
 protected:
-  std::unique_ptr<dynamic_reconfigure::Server<mppi_controller::PathAngleCriticConfig>> dsrv_;
   float max_angle_to_furthest_{0};
   float threshold_to_consider_{0};
 
@@ -92,6 +91,7 @@ private:
     threshold_to_consider_ = config.threshold_to_consider;
     offset_from_furthest_ = config.offset_from_furthest;
     mode_ = static_cast<PathAngleMode>(config.mode);
+    CriticFunction::reconfigureCB(config, level);
   }
 };
 

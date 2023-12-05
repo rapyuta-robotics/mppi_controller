@@ -20,9 +20,6 @@ namespace mppi::critics
 
 void ObstaclesCritic::initialize()
 {
-  dsrv_ = std::make_unique<dynamic_reconfigure::Server<mppi_controller::ObstacleCriticConfig>>(pnh_);
-  dsrv_->setCallback(boost::bind(&ObstaclesCritic::reconfigureCB, this, _1, _2));
-
   world_model_ = std::make_unique<base_local_planner::CostmapModel>(*costmap_ros_->getCostmap());
   possibly_inscribed_cost_ = findCircumscribedCost(costmap_ros_);
 
@@ -232,10 +229,11 @@ void ObstaclesCritic::reconfigureCB(mppi_controller::ObstacleCriticConfig& confi
   collision_margin_distance_ = config.collision_margin_distance;
   near_goal_distance_ = config.near_goal_distance;
   repulsion_weight_ = config.repulsion_weight;
+  CriticFunction::reconfigureCB(config, level);
 }
 
 }  // namespace mppi::critics
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(mppi::critics::ObstaclesCritic, mppi::critics::CriticFunction)
+PLUGINLIB_EXPORT_CLASS(mppi::critics::ObstaclesCritic, mppi::critics::CriticBase)

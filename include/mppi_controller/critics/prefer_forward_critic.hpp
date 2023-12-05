@@ -26,7 +26,7 @@ namespace mppi::critics
  * @class mppi::critics::ConstraintCritic
  * @brief Critic objective function for preferring forward motion
  */
-class PreferForwardCritic : public CriticFunction
+class PreferForwardCritic : public CriticFunction<mppi_controller::PreferForwardCriticConfig>
 {
 public:
   /**
@@ -43,13 +43,13 @@ public:
   void score(CriticData & data) override;
 
 protected:
-  float threshold_to_consider_{0};
-  std::unique_ptr<dynamic_reconfigure::Server<mppi_controller::PreferForwardCriticConfig>> dsrv_;
+  float threshold_to_consider_{ 0 };
 
 private:
   inline void reconfigureCB(mppi_controller::PreferForwardCriticConfig& config, uint32_t level)
   {
     threshold_to_consider_ = config.threshold_to_consider;
+    CriticFunction::reconfigureCB(config, level);
   }
 };
 

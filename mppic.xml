@@ -1,7 +1,5 @@
-<class_libraries>
-  <library path="mppi_controller">
-    <class type="mppi_controller::MPPIController" base_class_type="mbf_costmap_core::CostmapController">
-      <description>MPPI Controller</description>
-    </class>
-  </library>
-</class_libraries>
+<library path="lib/libmppi_controller">
+  <class name="mppi_controller/MPPIController" type="mppi_controller::MPPIController" base_class_type="mbf_costmap_core::CostmapController">
+    <description>MPPI Controller</description>
+  </class>
+</library>

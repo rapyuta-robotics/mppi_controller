@@ -17,7 +17,7 @@
 namespace mppi
 {
 
-CriticManager::CriticManager() : loader_("mppi_controller", "mppi::CriticFunction")
+CriticManager::CriticManager() : loader_("mppi_controller", "mppi::critics::CriticFunction")
 {
 }
 
@@ -63,8 +63,10 @@ void CriticManager::getParams()
 
 void CriticManager::evalTrajectoriesScores(CriticData& data) const
 {
-  for (size_t q = 0; q < critics_.size(); q++) {
-    if (data.fail_flag) {
+  for (size_t q = 0; q < critics_.size(); q++)
+  {
+    if (data.fail_flag)
+    {
       break;
     }
     critics_[q]->score(data);

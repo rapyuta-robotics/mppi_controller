@@ -33,8 +33,8 @@ void MPPIController::initialize(std::string name, tf2_ros::Buffer* tf, costmap_2
   name_ = name;
 
   // Configure composed objects
-  optimizer_.initialize(parent_nh_, name_, costmap_ros_, MPPIControllerConfig());
-  path_handler_.initialize(parent_nh_, name_, costmap_ros_, tf_buffer_);
+  optimizer_.initialize(pnh_, name_, costmap_ros_, MPPIControllerConfig());
+  path_handler_.initialize(pnh_, name_, costmap_ros_, tf_buffer_);
   planner_util_.initialize(tf, costmap_ros_->getCostmap(), costmap_ros_->getGlobalFrameID());
 
   dsrv_ = std::make_unique<dynamic_reconfigure::Server<MPPIControllerConfig>>(pnh_);
@@ -46,7 +46,7 @@ void MPPIController::initialize(std::string name, tf2_ros::Buffer* tf, costmap_2
 
   initialized_ = true;
 
-  trajectory_visualizer_.on_configure(parent_nh_, name_, costmap_ros_->getGlobalFrameID());
+  trajectory_visualizer_.on_configure(pnh_, name_, costmap_ros_->getGlobalFrameID());
 
   ROS_INFO_NAMED("MPPIController", "Configured MPPI Controller: %s", name_.c_str());
 }

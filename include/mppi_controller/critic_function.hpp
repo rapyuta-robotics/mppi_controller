@@ -78,6 +78,8 @@ public:
     ddynamic_reconfig_->registerVariable<double>(
         "cost_weight", &weight_, boost::bind(&CriticFunction::setParam<double>, this, _1, "cost_weight"),
         "Weight of cost");
+
+    initialize();
     ddynamic_reconfig_->publishServicesTopics();
   }
 

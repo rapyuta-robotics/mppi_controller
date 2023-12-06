@@ -229,6 +229,8 @@ void MPPIController::reconfigureCB(const mppi_controller::MPPIControllerConfig& 
 {
   visualize_ = config.visualize;
   optimizer_.setParams(config);
+  latest_limits_.xy_goal_tolerance = config.xy_goal_tolerance;
+  latest_limits_.yaw_goal_tolerance = config.yaw_goal_tolerance;
 }
 
 }  // namespace mppi_controller

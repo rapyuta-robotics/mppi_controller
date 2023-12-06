@@ -28,7 +28,7 @@ namespace mppi::critics
  * @class mppi::critics::ConstraintCritic
  * @brief Critic objective function for enforcing feasible constraints
  */
-class ConstraintCritic : public CriticFunction<mppi_controller::BaseCriticConfig>
+class ConstraintCritic : public CriticFunction<>
 {
 public:
   /**

@@ -72,6 +72,15 @@ void Optimizer::setParams(const mppi_controller::MPPIControllerConfig& config)
     s.sampling_std.vy = config.vy_std;
     s.sampling_std.wz = config.wz_std;
     s.constraints = s.base_constraints;
+
+    ROS_DEBUG_NAMED("Optimizer",
+                    "Updating setting params: model_dt: %f, time_steps: %d, batch_size: %d, "
+                    "iteration_count: %d, temperature: %f, gamma: %f, retry_attempt_limit: %d, "
+                    "vx_max: %f, vx_min: %f, vy_max: %f, wz_max: %f, vx_std: %f, vy_std: %f, "
+                    "wz_std: %f",
+                    s.model_dt, s.time_steps, s.batch_size, s.iteration_count, s.temperature, s.gamma,
+                    s.retry_attempt_limit, s.base_constraints.vx_max, s.base_constraints.vx_min, s.base_constraints.vy,
+                    s.base_constraints.wz, s.sampling_std.vx, s.sampling_std.vy, s.sampling_std.wz);
   }
 
   setMotionModel(config.motion_model);

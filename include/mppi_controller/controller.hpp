@@ -37,6 +37,12 @@ namespace mppi_controller
 
 using namespace mppi;  // NOLINT
 
+struct NavTolerances
+{
+  double xy_goal_tolerance;
+  double yaw_goal_tolerance;
+};
+
 /**
  * @class mppi::MPPIController
  * @brief Main plugin controller for MPPI Controller
@@ -132,7 +138,7 @@ protected:
   ros::NodeHandle pnh_;
   costmap_2d::Costmap2DROS* costmap_ros_;
   tf2_ros::Buffer* tf_buffer_;
-  base_local_planner::LocalPlannerLimits latest_limits_;
+  NavTolerances latest_limits_;
   base_local_planner::LocalPlannerUtil planner_util_;
   base_local_planner::OdometryHelperRos odom_helper_;
 

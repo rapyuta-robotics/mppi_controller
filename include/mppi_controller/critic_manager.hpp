@@ -79,8 +79,8 @@ protected:
   costmap_2d::Costmap2DROS* costmap_ros_;
   std::string name_;
 
-  pluginlib::ClassLoader<critics::CriticFunction> loader_;
-  std::vector<boost::shared_ptr<critics::CriticFunction>> critics_;
+  pluginlib::ClassLoader<critics::CriticBase> loader_;
+  std::vector<boost::shared_ptr<critics::CriticBase>> critics_;
 };
 
 }  // namespace mppi

@@ -19,8 +19,6 @@ namespace mppi::critics
 
 void TwirlingCritic::initialize()
 {
-  dsrv_ = std::make_unique<dynamic_reconfigure::Server<mppi_controller::TwirlingCriticConfig>>(pnh_);
-  dsrv_->setCallback(boost::bind(&TwirlingCritic::reconfigureCB, this, _1, _2));
 }
 
 void TwirlingCritic::score(CriticData & data)
@@ -39,4 +37,4 @@ void TwirlingCritic::score(CriticData & data)
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(mppi::critics::TwirlingCritic, mppi::critics::CriticFunction)
+PLUGINLIB_EXPORT_CLASS(mppi::critics::TwirlingCritic, mppi::critics::CriticBase)

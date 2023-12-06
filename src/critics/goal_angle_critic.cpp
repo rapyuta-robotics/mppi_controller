@@ -19,8 +19,6 @@ namespace mppi::critics
 
 void GoalAngleCritic::initialize()
 {
-  dsrv_ = std::make_unique<dynamic_reconfigure::Server<mppi_controller::GoalAngleCriticConfig>>(pnh_);
-  dsrv_->setCallback(boost::bind(&GoalAngleCritic::reconfigureCB, this, _1, _2));
 }
 
 void GoalAngleCritic::score(CriticData & data)
@@ -43,4 +41,4 @@ void GoalAngleCritic::score(CriticData & data)
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(mppi::critics::GoalAngleCritic, mppi::critics::CriticFunction)
+PLUGINLIB_EXPORT_CLASS(mppi::critics::GoalAngleCritic, mppi::critics::CriticBase)

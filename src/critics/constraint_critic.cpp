@@ -70,4 +70,4 @@ void ConstraintCritic::score(CriticData & data)
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(mppi::critics::ConstraintCritic, mppi::critics::CriticFunction)
+PLUGINLIB_EXPORT_CLASS(mppi::critics::ConstraintCritic, mppi::critics::CriticBase)

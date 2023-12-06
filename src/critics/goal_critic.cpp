@@ -22,8 +22,6 @@ using xt::evaluation_strategy::immediate;
 
 void GoalCritic::initialize()
 {
-  dsrv_ = std::make_unique<dynamic_reconfigure::Server<mppi_controller::GoalCriticConfig>>(pnh_);
-  dsrv_->setCallback(boost::bind(&GoalCritic::reconfigureCB, this, _1, _2));
 }
 
 void GoalCritic::score(CriticData & data)
@@ -53,4 +51,4 @@ void GoalCritic::score(CriticData & data)
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(mppi::critics::GoalCritic, mppi::critics::CriticFunction)
+PLUGINLIB_EXPORT_CLASS(mppi::critics::GoalCritic, mppi::critics::CriticBase)

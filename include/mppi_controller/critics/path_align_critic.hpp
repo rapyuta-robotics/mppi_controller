@@ -31,7 +31,7 @@ namespace mppi::critics
  * difficult (or impossible) to deviate in the presence of dynamic obstacles.
  * This is an important critic to tune and consider in tandem with Obstacle.
  */
-class PathAlignCritic : public CriticFunction
+class PathAlignCritic : public CriticFunction<mppi_controller::PathAlignCriticConfig>
 {
 public:
   /**
@@ -50,7 +50,6 @@ private:
   void reconfigureCB(mppi_controller::PathAlignCriticConfig& config, uint32_t level);
 
 protected:
-  std::unique_ptr<dynamic_reconfigure::Server<mppi_controller::PathAlignCriticConfig>> dsrv_;
   size_t offset_from_furthest_{0};
   int trajectory_point_step_{0};
   float threshold_to_consider_{0};

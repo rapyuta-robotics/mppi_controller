@@ -27,7 +27,7 @@ namespace mppi::critics
  * @class mppi::critics::ConstraintCritic
  * @brief Critic objective function for driving towards goal orientation
  */
-class GoalAngleCritic : public CriticFunction
+class GoalAngleCritic : public CriticFunction<mppi_controller::GoalAngleCriticConfig>
 {
 public:
   /**
@@ -48,9 +48,10 @@ protected:
   std::unique_ptr<dynamic_reconfigure::Server<mppi_controller::GoalAngleCriticConfig>> dsrv_;
 
 private:
-  inline void reconfigureCB(mppi_controller::GoalAngleCriticConfig& config, uint32_t level)
+  inline void reconfigureCB(mppi_controller::GoalAngleCriticConfig& config, uint32_t level) override final
   {
     threshold_to_consider_ = config.threshold_to_consider;
+    CriticFunction::reconfigureCB(config, level);
   }
 };
 

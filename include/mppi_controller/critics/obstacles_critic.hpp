@@ -34,7 +34,7 @@ namespace mppi::critics
  * between path-tracking and dynamic obstacle avoidance capabilities as desirable for a
  * particular application
  */
-class ObstaclesCritic : public CriticFunction
+class ObstaclesCritic : public CriticFunction<mppi_controller::ObstacleCriticConfig>
 {
 public:
   /**
@@ -86,7 +86,6 @@ private:
   void reconfigureCB(mppi_controller::ObstacleCriticConfig& config, uint32_t level);
 
 protected:
-  std::unique_ptr<dynamic_reconfigure::Server<mppi_controller::ObstacleCriticConfig>> dsrv_;
   std::unique_ptr<base_local_planner::CostmapModel> world_model_;
 
   bool consider_footprint_{true};

@@ -22,8 +22,6 @@ namespace mppi::critics
 
 void PathFollowCritic::initialize()
 {
-  dsrv_ = std::make_unique<dynamic_reconfigure::Server<mppi_controller::PathFollowCriticConfig>>(pnh_);
-  dsrv_->setCallback(boost::bind(&PathFollowCritic::reconfigureCB, this, _1, _2));
 }
 
 void PathFollowCritic::score(CriticData & data)
@@ -68,4 +66,4 @@ void PathFollowCritic::score(CriticData & data)
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(mppi::critics::PathFollowCritic, mppi::critics::CriticFunction)
+PLUGINLIB_EXPORT_CLASS(mppi::critics::PathFollowCritic, mppi::critics::CriticBase)

@@ -25,8 +25,6 @@ using xt::evaluation_strategy::immediate;
 
 void PathAlignCritic::initialize()
 {
-  dsrv_ = std::make_unique<dynamic_reconfigure::Server<mppi_controller::PathAlignCriticConfig>>(pnh_);
-  dsrv_->setCallback(boost::bind(&PathAlignCritic::reconfigureCB, this, _1, _2));
 }
 
 void PathAlignCritic::score(CriticData & data)
@@ -127,10 +125,11 @@ void PathAlignCritic::reconfigureCB(mppi_controller::PathAlignCriticConfig& conf
   threshold_to_consider_ = config.threshold_to_consider;
   max_path_occupancy_ratio_ = config.max_path_occupancy_ratio;
   use_path_orientations_ = config.use_path_orientations;
+  CriticFunction::reconfigureCB(config, level);
 }
 
 }  // namespace mppi::critics
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(mppi::critics::PathAlignCritic, mppi::critics::CriticFunction)
+PLUGINLIB_EXPORT_CLASS(mppi::critics::PathAlignCritic, mppi::critics::CriticBase)

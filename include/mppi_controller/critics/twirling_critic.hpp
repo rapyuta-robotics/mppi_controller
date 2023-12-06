@@ -26,7 +26,7 @@ namespace mppi::critics
  * @class mppi::critics::ConstraintCritic
  * @brief Critic objective function for penalizing wiggling/twirling
  */
-class TwirlingCritic : public CriticFunction
+class TwirlingCritic : public CriticFunction<mppi_controller::TwirlingCriticConfig>
 {
 public:
   /**
@@ -44,12 +44,12 @@ public:
 
 protected:
   double threshold_to_consider_{ 0 };
-  std::unique_ptr<dynamic_reconfigure::Server<mppi_controller::TwirlingCriticConfig>> dsrv_;
 
 private:
-  inline void reconfigureCB(mppi_controller::TwirlingCriticConfig& config, uint32_t level)
+  inline void reconfigureCB(mppi_controller::TwirlingCriticConfig& config, uint32_t level) override final
   {
     threshold_to_consider_ = config.threshold_to_consider;
+    CriticFunction::reconfigureCB(config, level);
   }
 };
 

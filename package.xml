@@ -3,9 +3,10 @@
 <package format="3">
   <name>mppi_controller</name>
   <version>1.2.0</version>
-  <description>mppi_controller</description>
+  <description>mppi_controller for ROS 1</description>
   <maintainer email="stevenmacenski@gmail.com">Steve Macenski</maintainer>
   <maintainer email="budyakov.aleksei@gmail.com">Aleksei Budyakov</maintainer>
+  <maintainer email="renan028@gmail.com">Renan</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>catkin</buildtool_depend>

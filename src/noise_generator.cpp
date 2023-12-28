@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "nav2_mppi_controller/tools/noise_generator.hpp"
+#include "mppi_controller/tools/noise_generator.hpp"
 
 #include <memory>
 #include <mutex>
@@ -23,22 +23,16 @@
 namespace mppi
 {
 
-void NoiseGenerator::initialize(
-  mppi::models::OptimizerSettings & settings, bool is_holonomic,
-  const std::string & name, ParametersHandler * param_handler)
+void NoiseGenerator::initialize(const ros::NodeHandle& parent_nh, mppi::models::OptimizerSettings& settings,
+                                bool is_holonomic, const std::string& name)
 {
   settings_ = settings;
   is_holonomic_ = is_holonomic;
-  active_ = true;
+  active_ = false;
 
-  auto getParam = param_handler->getParamGetter(name);
-  getParam(regenerate_noises_, "regenerate_noises", false);
-
-  if (regenerate_noises_) {
-    noise_thread_ = std::thread(std::bind(&NoiseGenerator::noiseThread, this));
-  } else {
-    generateNoisedControls();
-  }
+  ros::NodeHandle noise_pnh = ros::NodeHandle(parent_nh, name + "/noise_generator");
+  dsrv_ = std::make_unique<dynamic_reconfigure::Server<mppi_controller::NoiseGeneratorConfig>>(noise_pnh);
+  dsrv_->setCallback(boost::bind(&NoiseGenerator::reconfigureCB, this, _1, _2));
 }
 
 void NoiseGenerator::shutdown()
@@ -73,10 +67,15 @@ void NoiseGenerator::setNoisedControls(
   xt::noalias(state.cwz) = control_sequence.wz + noises_wz_;
 }
 
-void NoiseGenerator::reset(mppi::models::OptimizerSettings & settings, bool is_holonomic)
+void NoiseGenerator::reset(const mppi::models::OptimizerSettings& settings, bool is_holonomic)
 {
-  settings_ = settings;
-  is_holonomic_ = is_holonomic;
+  bool regenerate_noises;
+  {
+    std::unique_lock<std::mutex> guard(param_mtx_);
+    settings_ = settings;
+    is_holonomic_ = is_holonomic;
+    regenerate_noises = regenerate_noises_;
+  }
 
   // Recompute the noises on reset, initialization, and fallback
   {
@@ -87,9 +86,12 @@ void NoiseGenerator::reset(mppi::models::OptimizerSettings & settings, bool is_h
     ready_ = true;
   }
 
-  if (regenerate_noises_) {
+  if (regenerate_noises)
+  {
     noise_cond_.notify_all();
-  } else {
+  }
+  else
+  {
     generateNoisedControls();
   }
 }
@@ -106,7 +108,11 @@ void NoiseGenerator::noiseThread()
 
 void NoiseGenerator::generateNoisedControls()
 {
-  auto & s = settings_;
+  mppi::models::OptimizerSettings s;
+  {
+    std::unique_lock<std::mutex> guard(param_mtx_);
+    s = settings_;
+  }
 
   xt::noalias(noises_vx_) = xt::random::randn<float>(
     {s.batch_size, s.time_steps}, 0.0f,
@@ -118,6 +124,25 @@ void NoiseGenerator::generateNoisedControls()
     xt::noalias(noises_vy_) = xt::random::randn<float>(
       {s.batch_size, s.time_steps}, 0.0f,
       s.sampling_std.vy);
+  }
+}
+
+void NoiseGenerator::reconfigureCB(mppi_controller::NoiseGeneratorConfig& config, uint32_t level)
+{
+  regenerate_noises_ = config.regenerate_noises;
+  if (regenerate_noises_)
+  {
+    active_ = true;
+    noise_thread_ = std::thread(std::bind(&NoiseGenerator::noiseThread, this));
+  }
+  else
+  {
+    active_ = false;
+    if (noise_thread_.joinable())
+    {
+      noise_thread_.join();
+    }
+    generateNoisedControls();
   }
 }
 

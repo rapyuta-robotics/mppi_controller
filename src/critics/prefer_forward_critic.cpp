@@ -12,22 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "nav2_mppi_controller/critics/prefer_forward_critic.hpp"
+#include "mppi_controller/critics/prefer_forward_critic.hpp"
 
 namespace mppi::critics
 {
 
 void PreferForwardCritic::initialize()
 {
-  auto getParam = parameters_handler_->getParamGetter(name_);
-  getParam(power_, "cost_power", 1);
-  getParam(weight_, "cost_weight", 5.0);
-  getParam(
-    threshold_to_consider_,
-    "threshold_to_consider", 0.5);
-
-  RCLCPP_INFO(
-    logger_, "PreferForwardCritic instantiated with %d power and %f weight.", power_, weight_);
 }
 
 void PreferForwardCritic::score(CriticData & data)
@@ -50,6 +41,4 @@ void PreferForwardCritic::score(CriticData & data)
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(
-  mppi::critics::PreferForwardCritic,
-  mppi::critics::CriticFunction)
+PLUGINLIB_EXPORT_CLASS(mppi::critics::PreferForwardCritic, mppi::critics::CriticBase)

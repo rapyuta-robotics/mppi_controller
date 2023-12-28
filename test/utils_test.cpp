@@ -18,8 +18,8 @@
 #include <xtensor/xrandom.hpp>
 #include "gtest/gtest.h"
 #include "rclcpp/rclcpp.hpp"
-#include "nav2_mppi_controller/tools/utils.hpp"
-#include "nav2_mppi_controller/models/path.hpp"
+#include "mppi_controller/tools/utils.hpp"
+#include "mppi_controller/models/path.hpp"
 
 // Tests noise generator object
 
@@ -42,18 +42,18 @@ public:
   virtual void initialize(
     const rclcpp_lifecycle::LifecycleNode::WeakPtr & /*parent*/,
     const std::string & /*plugin_name*/,
-    const std::shared_ptr<nav2_costmap_2d::Costmap2DROS>/*costmap_ros*/) {}
+    const std::shared_ptr<costmap_2d::Costmap2DROS>/*costmap_ros*/) {}
 
   virtual void reset() {}
 
   virtual bool isGoalReached(
-    const geometry_msgs::msg::Pose & /*query_pose*/,
-    const geometry_msgs::msg::Pose & /*goal_pose*/,
-    const geometry_msgs::msg::Twist & /*velocity*/) {return false;}
+    const geometry_msgs::Pose & /*query_pose*/,
+    const geometry_msgs::Pose & /*goal_pose*/,
+    const geometry_msgs::Twist & /*velocity*/) {return false;}
 
   virtual bool getTolerances(
-    geometry_msgs::msg::Pose & pose_tolerance,
-    geometry_msgs::msg::Twist & /*vel_tolerance*/)
+    geometry_msgs::Pose & pose_tolerance,
+    geometry_msgs::Twist & /*vel_tolerance*/)
   {
     pose_tolerance.position.x = 0.25;
     pose_tolerance.position.y = 0.25;
@@ -91,7 +91,7 @@ TEST(UtilsTests, MarkerPopulationUtils)
 
 TEST(UtilsTests, ConversionTests)
 {
-  geometry_msgs::msg::TwistStamped output;
+  geometry_msgs::TwistStamped output;
   builtin_interfaces::msg::Time time;
 
   // Check population is correct
@@ -109,7 +109,7 @@ TEST(UtilsTests, ConversionTests)
   EXPECT_EQ(output.header.frame_id, "map");
   EXPECT_EQ(output.header.stamp, time);
 
-  nav_msgs::msg::Path path;
+  nav_msgs::Path path;
   path.poses.resize(5);
   path.poses[2].pose.position.x = 5;
   path.poses[2].pose.position.y = 50;
@@ -126,14 +126,14 @@ TEST(UtilsTests, ConversionTests)
 
 TEST(UtilsTests, WithTolTests)
 {
-  geometry_msgs::msg::Pose pose;
+  geometry_msgs::Pose pose;
   pose.position.x = 10.0;
   pose.position.y = 1.0;
 
   nav2_core::GoalChecker * goal_checker = new TestGoalChecker;
 
   // Test not in tolerance
-  nav_msgs::msg::Path path;
+  nav_msgs::Path path;
   path.poses.resize(2);
   path.poses[1].pose.position.x = 0.0;
   path.poses[1].pose.position.y = 0.0;
@@ -190,7 +190,7 @@ TEST(UtilsTests, AnglesTests)
   }
 
   // Test point-pose angle
-  geometry_msgs::msg::Pose pose;
+  geometry_msgs::Pose pose;
   pose.position.x = 0.0;
   pose.position.y = 0.0;
   pose.orientation.w = 1.0;
@@ -245,7 +245,7 @@ TEST(UtilsTests, FurthestAndClosestReachedPoint)
   generated_trajectories.y = xt::zeros<float>({100, 2});
   generated_trajectories.yaws = xt::zeros<float>({100, 2});
 
-  nav_msgs::msg::Path plan;
+  nav_msgs::Path plan;
   plan.poses.resize(10);
   for (unsigned int i = 0; i != plan.poses.size(); i++) {
     plan.poses[i].pose.position.x = 0.2 * i;
@@ -285,7 +285,7 @@ TEST(UtilsTests, findPathCosts)
   {state, generated_trajectories, path, costs, model_dt, false, nullptr, nullptr,
     std::nullopt, std::nullopt};  /// Caution, keep references
 
-  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>(
+  auto costmap_ros = std::make_shared<costmap_2d::Costmap2DROS>(
     "dummy_costmap", "", "dummy_costmap", true);
   rclcpp_lifecycle::State lstate;
   costmap_ros->on_configure(lstate);
@@ -384,9 +384,9 @@ TEST(UtilsTests, SmootherTest)
 TEST(UtilsTests, FindPathInversionTest)
 {
   // Straight path, no inversions to be found
-  nav_msgs::msg::Path path;
+  nav_msgs::Path path;
   for (unsigned int i = 0; i != 10; i++) {
-    geometry_msgs::msg::PoseStamped pose;
+    geometry_msgs::PoseStamped pose;
     pose.pose.position.x = i;
     path.poses.push_back(pose);
   }
@@ -400,12 +400,12 @@ TEST(UtilsTests, FindPathInversionTest)
   // 0 1 2 3 4 5 6 7 8 9 10 **9** 8 7 6 5 4 3 2 1
   path.poses.clear();
   for (unsigned int i = 0; i != 10; i++) {
-    geometry_msgs::msg::PoseStamped pose;
+    geometry_msgs::PoseStamped pose;
     pose.pose.position.x = i;
     path.poses.push_back(pose);
   }
   for (unsigned int i = 0; i != 10; i++) {
-    geometry_msgs::msg::PoseStamped pose;
+    geometry_msgs::PoseStamped pose;
     pose.pose.position.x = 10 - i;
     path.poses.push_back(pose);
   }
@@ -414,10 +414,10 @@ TEST(UtilsTests, FindPathInversionTest)
 
 TEST(UtilsTests, RemovePosesAfterPathInversionTest)
 {
-  nav_msgs::msg::Path path;
+  nav_msgs::Path path;
   // straight path
   for (unsigned int i = 0; i != 10; i++) {
-    geometry_msgs::msg::PoseStamped pose;
+    geometry_msgs::PoseStamped pose;
     pose.pose.position.x = i;
     path.poses.push_back(pose);
   }
@@ -429,12 +429,12 @@ TEST(UtilsTests, RemovePosesAfterPathInversionTest)
 
   // cusping path
   for (unsigned int i = 0; i != 10; i++) {
-    geometry_msgs::msg::PoseStamped pose;
+    geometry_msgs::PoseStamped pose;
     pose.pose.position.x = i;
     path.poses.push_back(pose);
   }
   for (unsigned int i = 0; i != 10; i++) {
-    geometry_msgs::msg::PoseStamped pose;
+    geometry_msgs::PoseStamped pose;
     pose.pose.position.x = 10 - i;
     path.poses.push_back(pose);
   }

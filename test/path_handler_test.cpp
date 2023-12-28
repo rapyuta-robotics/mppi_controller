@@ -17,7 +17,7 @@
 
 #include "gtest/gtest.h"
 #include "rclcpp/rclcpp.hpp"
-#include "nav2_mppi_controller/tools/path_handler.hpp"
+#include "mppi_controller/tools/path_handler.hpp"
 #include "tf2_ros/transform_broadcaster.h"
 
 // Tests path handling
@@ -38,7 +38,7 @@ public:
   PathHandlerWrapper()
   : PathHandler() {}
 
-  void pruneGlobalPlanWrapper(nav_msgs::msg::Path & path, const PathIterator end)
+  void pruneGlobalPlanWrapper(nav_msgs::Path & path, const PathIterator end)
   {
     return prunePlan(path, end);
   }
@@ -48,36 +48,36 @@ public:
     return getMaxCostmapDist();
   }
 
-  std::pair<nav_msgs::msg::Path, PathIterator>
-  getGlobalPlanConsideringBoundsInCostmapFrameWrapper(const geometry_msgs::msg::PoseStamped & pose)
+  std::pair<nav_msgs::Path, PathIterator>
+  getGlobalPlanConsideringBoundsInCostmapFrameWrapper(const geometry_msgs::PoseStamped & pose)
   {
     return getGlobalPlanConsideringBoundsInCostmapFrame(pose);
   }
 
   bool transformPoseWrapper(
-    const std::string & frame, const geometry_msgs::msg::PoseStamped & in_pose,
-    geometry_msgs::msg::PoseStamped & out_pose) const
+    const std::string & frame, const geometry_msgs::PoseStamped & in_pose,
+    geometry_msgs::PoseStamped & out_pose) const
   {
     return transformPose(frame, in_pose, out_pose);
   }
 
-  geometry_msgs::msg::PoseStamped transformToGlobalPlanFrameWrapper(
-    const geometry_msgs::msg::PoseStamped & pose)
+  geometry_msgs::PoseStamped transformToGlobalPlanFrameWrapper(
+    const geometry_msgs::PoseStamped & pose)
   {
     return transformToGlobalPlanFrame(pose);
   }
 
-  void setGlobalPlanUpToInversion(const nav_msgs::msg::Path & path)
+  void setGlobalPlanUpToInversion(const nav_msgs::Path & path)
   {
     global_plan_up_to_inversion_ = path;
   }
 
-  bool isWithinInversionTolerancesWrapper(const geometry_msgs::msg::PoseStamped & robot_pose)
+  bool isWithinInversionTolerancesWrapper(const geometry_msgs::PoseStamped & robot_pose)
   {
     return isWithinInversionTolerances(robot_pose);
   }
 
-  nav_msgs::msg::Path & getInvertedPath()
+  nav_msgs::Path & getInvertedPath()
   {
     return global_plan_up_to_inversion_;
   }
@@ -85,7 +85,7 @@ public:
 
 TEST(PathHandlerTests, GetAndPrunePath)
 {
-  nav_msgs::msg::Path path;
+  nav_msgs::Path path;
   PathHandlerWrapper handler;
 
   path.header.frame_id = "fkframe";
@@ -107,7 +107,7 @@ TEST(PathHandlerTests, TestBounds)
   PathHandlerWrapper handler;
   auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("my_node");
   node->declare_parameter("dummy.max_robot_pose_search_dist", rclcpp::ParameterValue(99999.9));
-  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>(
+  auto costmap_ros = std::make_shared<costmap_2d::Costmap2DROS>(
     "dummy_costmap", "", "dummy_costmap", true);
   auto results = costmap_ros->set_parameters_atomically(
     {rclcpp::Parameter("global_frame", "odom"),
@@ -132,14 +132,14 @@ TEST(PathHandlerTests, TestBounds)
   tf_broadcaster_->sendTransform(t);
 
   // Test getting the global plans within a bounds window
-  nav_msgs::msg::Path path;
+  nav_msgs::Path path;
   path.header.frame_id = "map";
   path.poses.resize(100);
   for (unsigned int i = 0; i != path.poses.size(); i++) {
     path.poses[i].pose.position.x = i;
     path.poses[i].header.frame_id = "map";
   }
-  geometry_msgs::msg::PoseStamped robot_pose;
+  geometry_msgs::PoseStamped robot_pose;
   robot_pose.header.frame_id = "odom";
   robot_pose.pose.position.x = 25.0;
 
@@ -158,7 +158,7 @@ TEST(PathHandlerTests, TestTransforms)
   PathHandlerWrapper handler;
   auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("my_node");
   node->declare_parameter("dummy.max_robot_pose_search_dist", rclcpp::ParameterValue(99999.9));
-  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>(
+  auto costmap_ros = std::make_shared<costmap_2d::Costmap2DROS>(
     "dummy_costmap", "", "dummy_costmap", true);
   ParametersHandler param_handler(node);
   rclcpp_lifecycle::State state;
@@ -178,7 +178,7 @@ TEST(PathHandlerTests, TestTransforms)
   t.child_frame_id = "odom";
   tf_broadcaster_->sendTransform(t);
 
-  nav_msgs::msg::Path path;
+  nav_msgs::Path path;
   path.header.frame_id = "map";
   path.poses.resize(100);
   for (unsigned int i = 0; i != path.poses.size(); i++) {
@@ -186,7 +186,7 @@ TEST(PathHandlerTests, TestTransforms)
     path.poses[i].header.frame_id = "map";
   }
 
-  geometry_msgs::msg::PoseStamped robot_pose, output_pose;
+  geometry_msgs::PoseStamped robot_pose, output_pose;
   robot_pose.header.frame_id = "odom";
   robot_pose.pose.position.x = 2.5;
 
@@ -207,9 +207,9 @@ TEST(PathHandlerTests, TestTransforms)
 
 TEST(PathHandlerTests, TestInversionToleranceChecks)
 {
-  nav_msgs::msg::Path path;
+  nav_msgs::Path path;
   for (unsigned int i = 0; i != 10; i++) {
-    geometry_msgs::msg::PoseStamped pose;
+    geometry_msgs::PoseStamped pose;
     pose.pose.position.x = static_cast<double>(i);
     path.poses.push_back(pose);
   }
@@ -219,7 +219,7 @@ TEST(PathHandlerTests, TestInversionToleranceChecks)
   handler.setGlobalPlanUpToInversion(path);
 
   // Not near (0,0)
-  geometry_msgs::msg::PoseStamped robot_pose;
+  geometry_msgs::PoseStamped robot_pose;
   EXPECT_FALSE(handler.isWithinInversionTolerancesWrapper(robot_pose));
 
   // Exactly on top of it

@@ -17,7 +17,7 @@
 
 #include "gtest/gtest.h"
 #include "rclcpp/rclcpp.hpp"
-#include "nav2_mppi_controller/tools/trajectory_visualizer.hpp"
+#include "mppi_controller/tools/trajectory_visualizer.hpp"
 
 // Tests trajectory visualization
 
@@ -47,14 +47,14 @@ TEST(TrajectoryVisualizerTests, VisPathRepub)
 {
   auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("my_node");
   auto parameters_handler = std::make_unique<ParametersHandler>(node);
-  nav_msgs::msg::Path recieved_path;
-  nav_msgs::msg::Path pub_path;
+  nav_msgs::Path recieved_path;
+  nav_msgs::Path pub_path;
   pub_path.header.frame_id = "fake_frame";
   pub_path.poses.resize(5);
 
-  auto my_sub = node->create_subscription<nav_msgs::msg::Path>(
+  auto my_sub = node->create_subscription<nav_msgs::Path>(
     "transformed_global_plan", 10,
-    [&](const nav_msgs::msg::Path msg) {recieved_path = msg;});
+    [&](const nav_msgs::Path msg) {recieved_path = msg;});
 
   TrajectoryVisualizer vis;
   vis.on_configure(node, "my_name", "map", parameters_handler.get());
@@ -71,10 +71,10 @@ TEST(TrajectoryVisualizerTests, VisOptimalTrajectory)
   auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("my_node");
   auto parameters_handler = std::make_unique<ParametersHandler>(node);
 
-  visualization_msgs::msg::MarkerArray recieved_msg;
-  auto my_sub = node->create_subscription<visualization_msgs::msg::MarkerArray>(
+  visualization_msgs::MarkerArray recieved_msg;
+  auto my_sub = node->create_subscription<visualization_msgs::MarkerArray>(
     "/trajectories", 10,
-    [&](const visualization_msgs::msg::MarkerArray msg) {recieved_msg = msg;});
+    [&](const visualization_msgs::MarkerArray msg) {recieved_msg = msg;});
 
   // optimal_trajectory empty, should fail to publish
   xt::xtensor<float, 2> optimal_trajectory;
@@ -82,7 +82,7 @@ TEST(TrajectoryVisualizerTests, VisOptimalTrajectory)
   vis.on_configure(node, "my_name", "fkmap", parameters_handler.get());
   vis.on_activate();
   vis.add(optimal_trajectory, "Optimal Trajectory");
-  nav_msgs::msg::Path bogus_path;
+  nav_msgs::Path bogus_path;
   vis.visualize(bogus_path);
 
   rclcpp::spin_some(node->get_node_base_interface());
@@ -132,10 +132,10 @@ TEST(TrajectoryVisualizerTests, VisCandidateTrajectories)
   auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("my_node");
   auto parameters_handler = std::make_unique<ParametersHandler>(node);
 
-  visualization_msgs::msg::MarkerArray recieved_msg;
-  auto my_sub = node->create_subscription<visualization_msgs::msg::MarkerArray>(
+  visualization_msgs::MarkerArray recieved_msg;
+  auto my_sub = node->create_subscription<visualization_msgs::MarkerArray>(
     "/trajectories", 10,
-    [&](const visualization_msgs::msg::MarkerArray msg) {recieved_msg = msg;});
+    [&](const visualization_msgs::MarkerArray msg) {recieved_msg = msg;});
 
   models::Trajectories candidate_trajectories;
   candidate_trajectories.x = xt::ones<float>({200, 12});
@@ -146,7 +146,7 @@ TEST(TrajectoryVisualizerTests, VisCandidateTrajectories)
   vis.on_configure(node, "my_name", "fkmap", parameters_handler.get());
   vis.on_activate();
   vis.add(candidate_trajectories, "Candidate Trajectories");
-  nav_msgs::msg::Path bogus_path;
+  nav_msgs::Path bogus_path;
   vis.visualize(bogus_path);
 
   rclcpp::spin_some(node->get_node_base_interface());

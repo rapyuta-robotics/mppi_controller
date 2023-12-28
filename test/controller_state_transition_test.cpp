@@ -13,14 +13,14 @@
 // limitations under the License.
 
 #include "gtest/gtest.h"
-#include <geometry_msgs/msg/pose_stamped.hpp>
-#include <geometry_msgs/msg/twist.hpp>
+#include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/Twist.h>
 #include <nav_msgs/msg/path.hpp>
 
-#include <nav2_costmap_2d/costmap_2d.hpp>
-#include <nav2_costmap_2d/costmap_2d_ros.hpp>
+#include <costmap_2d/costmap_2d.hpp>
+#include <costmap_2d/costmap_2d_ros.hpp>
 
-#include "nav2_mppi_controller/controller.hpp"
+#include "mppi_controller/controller.hpp"
 
 #include "utils/utils.hpp"
 

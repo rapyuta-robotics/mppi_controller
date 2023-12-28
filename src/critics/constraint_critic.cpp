@@ -12,30 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "nav2_mppi_controller/critics/constraint_critic.hpp"
+#include "mppi_controller/critics/constraint_critic.hpp"
 
 namespace mppi::critics
 {
 
 void ConstraintCritic::initialize()
 {
-  auto getParam = parameters_handler_->getParamGetter(name_);
-  auto getParentParam = parameters_handler_->getParamGetter(parent_name_);
+}
 
-  getParam(power_, "cost_power", 1);
-  getParam(weight_, "cost_weight", 4.0);
-  RCLCPP_INFO(
-    logger_, "ConstraintCritic instantiated with %d power and %f weight.",
-    power_, weight_);
-
-  float vx_max, vy_max, vx_min;
-  getParentParam(vx_max, "vx_max", 0.5);
-  getParentParam(vy_max, "vy_max", 0.0);
-  getParentParam(vx_min, "vx_min", -0.35);
-
-  const float min_sgn = vx_min > 0.0 ? 1.0 : -1.0;
-  max_vel_ = sqrtf(vx_max * vx_max + vy_max * vy_max);
-  min_vel_ = min_sgn * sqrtf(vx_min * vx_min + vy_max * vy_max);
+void ConstraintCritic::updateConstraints(const models::ControlConstraints& constraints)
+{
+  std::lock_guard<std::mutex> lock(constraint_mtx_);
+  constraints_ = constraints;
+  const float min_sgn = constraints_.vx_min > 0.0 ? 1.0 : -1.0;
+  max_vel_ = sqrtf(constraints_.vx_max * constraints_.vx_max + constraints_.vy * constraints_.vy);
+  min_vel_ = min_sgn * sqrtf(constraints_.vx_min * constraints_.vx_min + constraints_.vy * constraints_.vy);
 }
 
 void ConstraintCritic::score(CriticData & data)
@@ -78,4 +70,4 @@ void ConstraintCritic::score(CriticData & data)
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(mppi::critics::ConstraintCritic, mppi::critics::CriticFunction)
+PLUGINLIB_EXPORT_CLASS(mppi::critics::ConstraintCritic, mppi::critics::CriticBase)

@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "nav2_mppi_controller/critics/path_angle_critic.hpp"
+#include "mppi_controller/critics/path_angle_critic.hpp"
 
 #include <math.h>
 
@@ -22,43 +22,23 @@ namespace mppi::critics
 
 using xt::evaluation_strategy::immediate;
 
-void PathAngleCritic::initialize()
+void PathAngleCritic::updateConstraints(const models::ControlConstraints& constraints)
 {
-  auto getParentParam = parameters_handler_->getParamGetter(parent_name_);
-  float vx_min;
-  getParentParam(vx_min, "vx_min", -0.35);
-  if (fabs(vx_min) < 1e-6) {  // zero
+  std::lock_guard<std::mutex> lock(constraint_mtx_);
+  constraints_ = constraints;
+
+  if (fabs(constraints_.vx_min) < 1e-6)
+  {  // zero
     reversing_allowed_ = false;
-  } else if (vx_min < 0.0) {   // reversing possible
+  }
+  else if (constraints_.vx_min < 0.0)
+  {  // reversing possible
     reversing_allowed_ = true;
   }
+}
 
-  auto getParam = parameters_handler_->getParamGetter(name_);
-  getParam(offset_from_furthest_, "offset_from_furthest", 4);
-  getParam(power_, "cost_power", 1);
-  getParam(weight_, "cost_weight", 2.0);
-  getParam(
-    threshold_to_consider_,
-    "threshold_to_consider", 0.5);
-  getParam(
-    max_angle_to_furthest_,
-    "max_angle_to_furthest", 1.2);
-
-  int mode = 0;
-  getParam(mode, "mode", mode);
-  mode_ = static_cast<PathAngleMode>(mode);
-  if (!reversing_allowed_ && mode_ == PathAngleMode::NO_DIRECTIONAL_PREFERENCE) {
-    mode_ = PathAngleMode::FORWARD_PREFERENCE;
-    RCLCPP_WARN(
-      logger_,
-      "Path angle mode set to no directional preference, but controller's settings "
-      "don't allow for reversing! Setting mode to forward preference.");
-  }
-
-  RCLCPP_INFO(
-    logger_,
-    "PathAngleCritic instantiated with %d power and %f weight. Mode set to: %s",
-    power_, weight_, modeToStr(mode_).c_str());
+void PathAngleCritic::initialize()
+{
 }
 
 void PathAngleCritic::score(CriticData & data)
@@ -76,7 +56,7 @@ void PathAngleCritic::score(CriticData & data)
   const float goal_x = xt::view(data.path.x, offseted_idx);
   const float goal_y = xt::view(data.path.y, offseted_idx);
   const float goal_yaw = xt::view(data.path.yaws, offseted_idx);
-  const geometry_msgs::msg::Pose & pose = data.state.pose.pose;
+  const geometry_msgs::Pose & pose = data.state.pose.pose;
 
   switch (mode_) {
     case PathAngleMode::FORWARD_PREFERENCE:
@@ -95,7 +75,11 @@ void PathAngleCritic::score(CriticData & data)
       }
       break;
     default:
-      throw nav2_core::ControllerException("Invalid path angle mode!");
+      if (utils::posePointAngle(pose, goal_x, goal_y, true) < max_angle_to_furthest_)
+      {
+        return;
+      }
+      break;
   }
 
   auto yaws_between_points = xt::atan2(
@@ -137,6 +121,4 @@ void PathAngleCritic::score(CriticData & data)
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(
-  mppi::critics::PathAngleCritic,
-  mppi::critics::CriticFunction)
+PLUGINLIB_EXPORT_CLASS(mppi::critics::PathAngleCritic, mppi::critics::CriticBase)

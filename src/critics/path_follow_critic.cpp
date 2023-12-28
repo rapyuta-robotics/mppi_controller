@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "nav2_mppi_controller/critics/path_follow_critic.hpp"
+#include "mppi_controller/critics/path_follow_critic.hpp"
 
 #include <xtensor/xmath.hpp>
 #include <xtensor/xsort.hpp>
@@ -22,14 +22,6 @@ namespace mppi::critics
 
 void PathFollowCritic::initialize()
 {
-  auto getParam = parameters_handler_->getParamGetter(name_);
-
-  getParam(
-    threshold_to_consider_,
-    "threshold_to_consider", 1.4);
-  getParam(offset_from_furthest_, "offset_from_furthest", 6);
-  getParam(power_, "cost_power", 1);
-  getParam(weight_, "cost_weight", 5.0);
 }
 
 void PathFollowCritic::score(CriticData & data)
@@ -74,6 +66,4 @@ void PathFollowCritic::score(CriticData & data)
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(
-  mppi::critics::PathFollowCritic,
-  mppi::critics::CriticFunction)
+PLUGINLIB_EXPORT_CLASS(mppi::critics::PathFollowCritic, mppi::critics::CriticBase)

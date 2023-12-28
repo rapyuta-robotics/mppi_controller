@@ -12,67 +12,72 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "nav2_mppi_controller/critic_manager.hpp"
+#include "mppi_controller/critic_manager.hpp"
 
 namespace mppi
 {
 
-void CriticManager::on_configure(
-  rclcpp_lifecycle::LifecycleNode::WeakPtr parent, const std::string & name,
-  std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros, ParametersHandler * param_handler)
+CriticManager::CriticManager() : loader_("mppi_controller", "mppi::critics::CriticBase")
 {
-  parent_ = parent;
+}
+
+void CriticManager::on_configure(const ros::NodeHandle& parent_nh, const std::string& name,
+                                 costmap_2d::Costmap2DROS* costmap_ros)
+{
+  parent_nh_ = parent_nh;
   costmap_ros_ = costmap_ros;
   name_ = name;
-  auto node = parent_.lock();
-  logger_ = node->get_logger();
-  parameters_handler_ = param_handler;
-
   getParams();
-  loadCritics();
 }
 
 void CriticManager::getParams()
 {
-  auto node = parent_.lock();
-  auto getParam = parameters_handler_->getParamGetter(name_);
-  getParam(critic_names_, "critics", std::vector<std::string>{}, ParameterType::Static);
-}
-
-void CriticManager::loadCritics()
-{
-  if (!loader_) {
-    loader_ = std::make_unique<pluginlib::ClassLoader<critics::CriticFunction>>(
-      "nav2_mppi_controller", "mppi::critics::CriticFunction");
+  const XmlRpc::XmlRpcValue plugins = parent_nh_.param<XmlRpc::XmlRpcValue>("critics", XmlRpc::XmlRpcValue());
+  if (plugins.getType() != XmlRpc::XmlRpcValue::TypeArray)
+  {
+    ROS_FATAL("'critics' parameter does not define a valid list");
+    ros::shutdown();
+    return;
   }
 
-  critics_.clear();
-  for (auto name : critic_names_) {
-    std::string fullname = getFullName(name);
-    auto instance = std::unique_ptr<critics::CriticFunction>(
-      loader_->createUnmanagedInstance(fullname));
-    critics_.push_back(std::move(instance));
-    critics_.back()->on_configure(
-      parent_, name_, name_ + "." + name, costmap_ros_,
-      parameters_handler_);
-    RCLCPP_INFO(logger_, "Critic loaded : %s", fullname.c_str());
+  for (int i = 0; i < plugins.size(); ++i)
+  {
+    const auto& plugin = plugins[i];
+    if (plugin.getType() != XmlRpc::XmlRpcValue::TypeStruct || !plugin.hasMember("name") || !plugin.hasMember("type"))
+    {
+      ROS_ERROR_STREAM("Critic at index " << i << " does not define a valid struct with 'name' and 'type' fields");
+      continue;
+    }
+
+    try
+    {
+      const auto& critic = critics_.emplace_back(loader_.createInstance(plugin["type"]));
+      critic->on_configure(parent_nh_, plugin["name"], costmap_ros_);
+    }
+    catch (const pluginlib::PluginlibException& e)
+    {
+      ROS_ERROR_STREAM("Failed to load plugin. " << e.what());
+    }
   }
 }
 
-std::string CriticManager::getFullName(const std::string & name)
+void CriticManager::evalTrajectoriesScores(CriticData& data) const
 {
-  return "mppi::critics::" + name;
-}
-
-void CriticManager::evalTrajectoriesScores(
-  CriticData & data) const
-{
-  for (size_t q = 0; q < critics_.size(); q++) {
-    if (data.fail_flag) {
+  for (size_t q = 0; q < critics_.size(); q++)
+  {
+    if (data.fail_flag)
+    {
       break;
     }
     critics_[q]->score(data);
   }
 }
 
+void CriticManager::updateConstraints(const models::ControlConstraints& constraints)
+{
+  for (size_t q = 0; q < critics_.size(); q++)
+  {
+    critics_[q]->updateConstraints(constraints);
+  }
+}
 }  // namespace mppi

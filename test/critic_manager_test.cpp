@@ -17,7 +17,7 @@
 
 #include "gtest/gtest.h"
 #include "rclcpp/rclcpp.hpp"
-#include "nav2_mppi_controller/critic_manager.hpp"
+#include "mppi_controller/critic_manager.hpp"
 
 // Tests critic manager
 
@@ -101,7 +101,7 @@ public:
 TEST(CriticManagerTests, BasicCriticOperations)
 {
   auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("my_node");
-  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>(
+  auto costmap_ros = std::make_shared<costmap_2d::Costmap2DROS>(
     "dummy_costmap", "", "dummy_costmap", true);
   ParametersHandler param_handler(node);
   rclcpp_lifecycle::State lstate;
@@ -139,7 +139,7 @@ TEST(CriticManagerTests, CriticLoadingTest)
   node->declare_parameter(
     "critic_manager.critics",
     rclcpp::ParameterValue(std::vector<std::string>{"ConstraintCritic", "PreferForwardCritic"}));
-  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>(
+  auto costmap_ros = std::make_shared<costmap_2d::Costmap2DROS>(
     "dummy_costmap", "", "dummy_costmap", true);
   ParametersHandler param_handler(node);
   rclcpp_lifecycle::State state;

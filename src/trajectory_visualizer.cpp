@@ -13,47 +13,26 @@
 // limitations under the License.
 
 #include <memory>
-#include "nav2_mppi_controller/tools/trajectory_visualizer.hpp"
+#include "mppi_controller/tools/trajectory_visualizer.hpp"
+#include <visualization_msgs/MarkerArray.h>
+#include <nav_msgs/Path.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 namespace mppi
 {
 
-void TrajectoryVisualizer::on_configure(
-  rclcpp_lifecycle::LifecycleNode::WeakPtr parent, const std::string & name,
-  const std::string & frame_id, ParametersHandler * parameters_handler)
+void TrajectoryVisualizer::on_configure(const ros::NodeHandle& parent_nh, const std::string& name,
+                                        const std::string& frame_id)
 {
-  auto node = parent.lock();
-  logger_ = node->get_logger();
   frame_id_ = frame_id;
-  trajectories_publisher_ =
-    node->create_publisher<visualization_msgs::msg::MarkerArray>("/trajectories", 1);
-  transformed_path_pub_ = node->create_publisher<nav_msgs::msg::Path>("transformed_global_plan", 1);
-  parameters_handler_ = parameters_handler;
+  ros::NodeHandle pnh(parent_nh, name);
+  trajectory_publisher_ = pnh.advertise<visualization_msgs::MarkerArray>("trajectories", 1);
+  transformed_path_pub_ = pnh.advertise<nav_msgs::Path>("transformed_global_plan", 1);
 
-  auto getParam = parameters_handler->getParamGetter(name + ".TrajectoryVisualizer");
-
-  getParam(trajectory_step_, "trajectory_step", 5);
-  getParam(time_step_, "time_step", 3);
+  pnh.param<int>("trajectory_step", trajectory_step_, 5);
+  pnh.param<int>("time_step", time_step_, 3);
 
   reset();
-}
-
-void TrajectoryVisualizer::on_cleanup()
-{
-  trajectories_publisher_.reset();
-  transformed_path_pub_.reset();
-}
-
-void TrajectoryVisualizer::on_activate()
-{
-  trajectories_publisher_->on_activate();
-  transformed_path_pub_->on_activate();
-}
-
-void TrajectoryVisualizer::on_deactivate()
-{
-  trajectories_publisher_->on_deactivate();
-  transformed_path_pub_->on_deactivate();
 }
 
 void TrajectoryVisualizer::add(
@@ -75,7 +54,7 @@ void TrajectoryVisualizer::add(
       auto color = utils::createColor(0, component, component, 1);
       auto marker = utils::createMarker(
         marker_id_++, pose, scale, color, frame_id_, marker_namespace);
-      points_->markers.push_back(marker);
+      points_.markers.push_back(marker);
     };
 
   for (size_t i = 0; i < size; i++) {
@@ -88,7 +67,7 @@ void TrajectoryVisualizer::add(
 {
   auto & shape = trajectories.x.shape();
   const float shape_1 = static_cast<float>(shape[1]);
-  points_->markers.reserve(floor(shape[0] / trajectory_step_) * floor(shape[1] * time_step_));
+  points_.markers.reserve(floor(shape[0] / trajectory_step_) * floor(shape[1] * time_step_));
 
   for (size_t i = 0; i < shape[0]; i += trajectory_step_) {
     for (size_t j = 0; j < shape[1]; j += time_step_) {
@@ -102,7 +81,7 @@ void TrajectoryVisualizer::add(
       auto marker = utils::createMarker(
         marker_id_++, pose, scale, color, frame_id_, marker_namespace);
 
-      points_->markers.push_back(marker);
+      points_.markers.push_back(marker);
     }
   }
 }
@@ -110,20 +89,21 @@ void TrajectoryVisualizer::add(
 void TrajectoryVisualizer::reset()
 {
   marker_id_ = 0;
-  points_ = std::make_unique<visualization_msgs::msg::MarkerArray>();
+  points_ = visualization_msgs::MarkerArray();
 }
 
-void TrajectoryVisualizer::visualize(const nav_msgs::msg::Path & plan)
+void TrajectoryVisualizer::visualize(const nav_msgs::Path& plan)
 {
-  if (trajectories_publisher_->get_subscription_count() > 0) {
-    trajectories_publisher_->publish(std::move(points_));
+  if (trajectory_publisher_.getNumSubscribers() > 0)
+  {
+    trajectory_publisher_.publish(std::move(points_));
   }
 
   reset();
 
-  if (transformed_path_pub_->get_subscription_count() > 0) {
-    auto plan_ptr = std::make_unique<nav_msgs::msg::Path>(plan);
-    transformed_path_pub_->publish(std::move(plan_ptr));
+  if (transformed_path_pub_.getNumSubscribers() > 0)
+  {
+    transformed_path_pub_.publish(std::move(plan));
   }
 }
 

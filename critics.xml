@@ -1,43 +1,63 @@
 <class_libraries>
-  <library path="mppi_critics">
+  <library path="lib/libmppi_critics">
 
-    <class type="mppi::critics::ObstaclesCritic" base_class_type="mppi::critics::CriticFunction">
+    <class  name="mppi_critics/ObstaclesCritic"
+            type="mppi::critics::ObstaclesCritic"
+            base_class_type="mppi::critics::CriticBase">
       <description>mppi critic for obstacle avoidance</description>
     </class>
 
-    <class type="mppi::critics::GoalCritic" base_class_type="mppi::critics::CriticFunction">
+    <class  name="mppi_critics/GoalCritic"
+            type="mppi::critics::GoalCritic"
+            base_class_type="mppi::critics::CriticBase">
       <description>mppi critic for driving towards the goal</description>
     </class>
 
-    <class type="mppi::critics::GoalAngleCritic" base_class_type="mppi::critics::CriticFunction">
+    <class  name="mppi_critics/GoalAngleCritic"
+            type="mppi::critics::GoalAngleCritic"
+            base_class_type="mppi::critics::CriticBase">
       <description>mppi critic for achieving the goal heading angle</description>
     </class>
 
-    <class type="mppi::critics::PathAlignCritic" base_class_type="mppi::critics::CriticFunction">
+    <class  name="mppi_critics/PathAlignCritic"
+            type="mppi::critics::PathAlignCritic"
+            base_class_type="mppi::critics::CriticBase">
       <description>mppi critic for aligning to path</description>
     </class>
 
-    <class type="mppi::critics::PathAlignLegacyCritic" base_class_type="mppi::critics::CriticFunction">
+    <class  name="mppi_critics/PathAlignLegacyCritic"
+            type="mppi::critics::PathAlignLegacyCritic"
+            base_class_type="mppi::critics::CriticBase">
       <description>mppi critic for aligning to path (legacy)</description>
     </class>
 
-    <class type="mppi::critics::PathAngleCritic" base_class_type="mppi::critics::CriticFunction">
+    <class  name="mppi_critics/PathAngleCritic"
+            type="mppi::critics::PathAngleCritic"
+            base_class_type="mppi::critics::CriticBase">
       <description>mppi critic for tracking the path in the correct heading</description>
     </class>
 
-    <class type="mppi::critics::PathFollowCritic" base_class_type="mppi::critics::CriticFunction">
+    <class  name="mppi_critics/PathFollowCritic"
+            type="mppi::critics::PathFollowCritic"
+            base_class_type="mppi::critics::CriticBase">
       <description>mppi critic for driving towards the goal that is furthest among trajectories nearest path points</description>
     </class>
 
-    <class type="mppi::critics::PreferForwardCritic" base_class_type="mppi::critics::CriticFunction">
+    <class  name="mppi_critics/PreferForwardCritic"
+            type="mppi::critics::PreferForwardCritic"
+            base_class_type="mppi::critics::CriticBase">
       <description></description>
     </class>
 
-    <class type="mppi::critics::TwirlingCritic" base_class_type="mppi::critics::CriticFunction">
+    <class  name="mppi_critics/TwirlingCritic"
+            type="mppi::critics::TwirlingCritic"
+            base_class_type="mppi::critics::CriticBase">
       <description>mppi critic for preventing twirling behavior when using omnidirectional models</description>
     </class>
 
-    <class type="mppi::critics::ConstraintCritic" base_class_type="mppi::critics::CriticFunction">
+    <class  name="mppi_critics/ConstraintCritic"
+            type="mppi::critics::ConstraintCritic"
+            base_class_type="mppi::critics::CriticBase">
       <description>mppi critic for incentivizing moving within kinematic and dynamic bounds</description>
     </class>
 

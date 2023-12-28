@@ -17,7 +17,7 @@
 
 #include "gtest/gtest.h"
 #include "rclcpp/rclcpp.hpp"
-#include "nav2_mppi_controller/tools/parameters_handler.hpp"
+#include "mppi_controller/tools/parameters_handler.hpp"
 
 // Tests parameter handler object
 

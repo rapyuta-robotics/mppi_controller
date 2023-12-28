@@ -23,8 +23,8 @@
 
 #include "tf2_ros/transform_broadcaster.h"
 
-#include "nav2_costmap_2d/costmap_2d.hpp"
-#include "nav2_costmap_2d/costmap_2d_ros.hpp"
+#include "costmap_2d/costmap_2d.hpp"
+#include <costmap_2d/costmap_2d_ros.h>
 
 #include "models.hpp"
 #include "factory.hpp"
@@ -71,7 +71,7 @@ void sendTf(
  * Print costmap to stdout.
  * @param costmap map to be printed.
  */
-void printMap(const nav2_costmap_2d::Costmap2D & costmap)
+void printMap(const costmap_2d::Costmap2D & costmap)
 {
   for (unsigned int i = 0; i < costmap.getSizeInCellsY(); i++) {
     for (unsigned int j = 0; j < costmap.getSizeInCellsX(); j++) {
@@ -89,8 +89,8 @@ void printMap(const nav2_costmap_2d::Costmap2D & costmap)
  */
 template<typename TTrajectory>
 void printMapWithTrajectoryAndGoal(
-  nav2_costmap_2d::Costmap2D & costmap, const TTrajectory & trajectory,
-  const geometry_msgs::msg::PoseStamped & goal)
+  costmap_2d::Costmap2D & costmap, const TTrajectory & trajectory,
+  const geometry_msgs::PoseStamped & goal)
 {
   const unsigned int trajectory_cost = 1;
   const unsigned int goal_cost = 2;
@@ -99,7 +99,7 @@ void printMapWithTrajectoryAndGoal(
             << "\n obsctacle = 255 \n";
 
   // create new costmap
-  nav2_costmap_2d::Costmap2D costmap2d(
+  costmap_2d::Costmap2D costmap2d(
     costmap.getSizeInCellsX(), costmap.getSizeInCellsY(), costmap.getResolution(),
     costmap.getOriginX(), costmap.getOriginY(), costmap.getDefaultValue());
 
@@ -133,7 +133,7 @@ void printMapWithTrajectoryAndGoal(
  * @param cost obstacle value on costmap.
  */
 void addObstacle(
-  nav2_costmap_2d::Costmap2D * costmap, unsigned int upper_left_corner_x,
+  costmap_2d::Costmap2D * costmap, unsigned int upper_left_corner_x,
   unsigned int upper_left_corner_y, unsigned int size, unsigned char cost)
 {
   for (unsigned int i = upper_left_corner_x; i < upper_left_corner_x + size; i++) {
@@ -164,7 +164,7 @@ void printInfo(
     "\n-------------------------------------------------------------------\n\n";
 }
 
-void addObstacle(nav2_costmap_2d::Costmap2D * costmap, TestObstaclesSettings s)
+void addObstacle(costmap_2d::Costmap2D * costmap, TestObstaclesSettings s)
 {
   addObstacle(costmap, s.center_cells_x, s.center_cells_y, s.obstacle_size, s.obstacle_cost);
 }
@@ -177,7 +177,7 @@ void addObstacle(nav2_costmap_2d::Costmap2D * costmap, TestObstaclesSettings s)
  * not
  */
 template<typename TTrajectory>
-bool inCollision(const TTrajectory & trajectory, const nav2_costmap_2d::Costmap2D & costmap)
+bool inCollision(const TTrajectory & trajectory, const costmap_2d::Costmap2D & costmap)
 {
   unsigned int point_mx = 0;
   unsigned int point_my = 0;
@@ -185,14 +185,14 @@ bool inCollision(const TTrajectory & trajectory, const nav2_costmap_2d::Costmap2
   for (size_t i = 0; i < trajectory.shape(0); ++i) {
     costmap.worldToMap(trajectory(i, 0), trajectory(i, 1), point_mx, point_my);
     auto cost_ = costmap.getCost(point_mx, point_my);
-    if (cost_ > nav2_costmap_2d::FREE_SPACE || cost_ == nav2_costmap_2d::NO_INFORMATION) {
+    if (cost_ > costmap_2d::FREE_SPACE || cost_ == costmap_2d::NO_INFORMATION) {
       return true;
     }
   }
   return false;
 }
 
-unsigned char getCost(const nav2_costmap_2d::Costmap2D & costmap, double x, double y)
+unsigned char getCost(const costmap_2d::Costmap2D & costmap, double x, double y)
 {
   unsigned int point_mx = 0;
   unsigned int point_my = 0;
@@ -203,8 +203,8 @@ unsigned char getCost(const nav2_costmap_2d::Costmap2D & costmap, double x, doub
 
 template<typename TTrajectory>
 bool isGoalReached(
-  const TTrajectory & trajectory, const nav2_costmap_2d::Costmap2D & costmap,
-  const geometry_msgs::msg::PoseStamped & goal)
+  const TTrajectory & trajectory, const costmap_2d::Costmap2D & costmap,
+  const geometry_msgs::PoseStamped & goal)
 {
   unsigned int trajectory_j = 0;
   unsigned int trajectory_i = 0;

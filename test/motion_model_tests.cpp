@@ -17,9 +17,9 @@
 
 #include "gtest/gtest.h"
 #include "rclcpp/rclcpp.hpp"
-#include "nav2_mppi_controller/motion_models.hpp"
-#include "nav2_mppi_controller/models/state.hpp"
-#include "nav2_mppi_controller/models/control_sequence.hpp"
+#include "mppi_controller/motion_models.hpp"
+#include "mppi_controller/models/state.hpp"
+#include "mppi_controller/models/control_sequence.hpp"
 
 // Tests motion models
 

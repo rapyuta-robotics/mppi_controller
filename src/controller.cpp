@@ -48,7 +48,7 @@ void MPPIController::initialize(std::string name, tf2_ros::Buffer* tf, costmap_2
 
   trajectory_visualizer_.on_configure(pnh_, name_, costmap_ros_->getGlobalFrameID());
 
-  ROS_INFO_NAMED("MPPIController", "Configured MPPI Controller: %s", name_.c_str());
+  ROS_INFO_NAMED(LOGNAME, "Inititalized");
 }
 
 MPPIController::~MPPIController()
@@ -111,6 +111,7 @@ bool MPPIController::setPlan(const std::vector<geometry_msgs::PoseStamped>& orig
   path.header.frame_id = costmap_ros_->getGlobalFrameID();
   path.header.stamp = ros::Time::now();
   path_handler_.setPath(path);
+  planner_util_.setPlan(orig_global_plan);
   return true;
 }
 
@@ -118,14 +119,15 @@ bool MPPIController::isGoalReached(double dist_tolerance, double angle_tolerance
 {
   if (!isInitialized())
   {
-    ROS_ERROR("This planner has not been initialized, please call initialize() before using this planner");
+    ROS_ERROR_THROTTLE_NAMED(
+        5.0, LOGNAME, "This planner has not been initialized, please call initialize() before using this planner");
     return false;
   }
 
   geometry_msgs::PoseStamped robot_pose;
   if (!costmap_ros_->getRobotPose(robot_pose))
   {
-    ROS_ERROR("Could not get robot pose");
+    ROS_ERROR_THROTTLE_NAMED(5.0, LOGNAME, "Could not get robot pose");
     return false;
   }
 
@@ -139,6 +141,7 @@ bool MPPIController::isGoalReached(double dist_tolerance, double angle_tolerance
   geometry_msgs::PoseStamped goal_pose;
   if (!planner_util_.getGoal(goal_pose))
   {
+    ROS_ERROR_THROTTLE_NAMED(5.0, LOGNAME, "Could not get goal pose");
     return false;
   }
 
@@ -146,33 +149,34 @@ bool MPPIController::isGoalReached(double dist_tolerance, double angle_tolerance
   const double xy_goal_tolerance = planner_util_.getCurrentLimits().xy_goal_tolerance;
   if (mbf_utility::distance(goal_pose, robot_pose) <= xy_goal_tolerance)
   {
-    ROS_DEBUG_NAMED("MPPI", "Goal position reached");
+    ROS_DEBUG_THROTTLE_NAMED(2.0, LOGNAME, "Goal position reached");
 
     const double yaw_goal_tolerance = planner_util_.getCurrentLimits().yaw_goal_tolerance;
     const double robot_yaw = tf2::getYaw(robot_pose.pose.orientation);
     const double goal_yaw = tf2::getYaw(goal_pose.pose.orientation);
     if (std::abs(angles::shortest_angular_distance(robot_yaw, goal_yaw)) <= yaw_goal_tolerance)
     {
-      ROS_DEBUG_NAMED("MPPI", "Goal orientation reached");
+      ROS_DEBUG_THROTTLE_NAMED(2.0, LOGNAME, "Goal orientation reached");
 
       // make sure that we're actually stopped before returning success
       const double theta_stopped_vel = planner_util_.getCurrentLimits().theta_stopped_vel;
       const double trans_stopped_vel = planner_util_.getCurrentLimits().trans_stopped_vel;
       if (base_local_planner::stopped(base_odom, theta_stopped_vel, trans_stopped_vel))
       {
-        ROS_DEBUG_NAMED("MPPI", "Goal reached and robot stopped");
+        ROS_DEBUG_THROTTLE_NAMED(2.0, LOGNAME, "Goal reached and robot stopped");
         return true;
       }
-      ROS_DEBUG_NAMED("MPPI", "Goal reached but robot still in motion");
+      ROS_DEBUG_THROTTLE_NAMED(2.0, LOGNAME, "Goal reached but robot still in motion");
       return false;
     }
-    ROS_DEBUG_NAMED("MPPI", "Goal position reached, but orientation not reached yet");
+    ROS_DEBUG_NAMED(LOGNAME, "Goal position reached, but orientation not reached yet");
     return false;
   }
 
-  ROS_DEBUG_NAMED("MPPI", "Robot position (%.2f, %.2f) is still %.2fm away from goal (%.2f, %.2f)",
-                  robot_pose.pose.position.x, robot_pose.pose.position.y, mbf_utility::distance(goal_pose, robot_pose),
-                  goal_pose.pose.position.x, goal_pose.pose.position.y);
+  ROS_DEBUG_THROTTLE_NAMED(5.0, LOGNAME, "Robot position (%.2f, %.2f) is still %.2fm away from goal (%.2f, %.2f)",
+                           robot_pose.pose.position.x, robot_pose.pose.position.y,
+                           mbf_utility::distance(goal_pose, robot_pose), goal_pose.pose.position.x,
+                           goal_pose.pose.position.y);
   return false;
 }
 
@@ -186,7 +190,7 @@ void MPPIController::updateTolerances(double dist_tolerance, double angle_tolera
     if (dist_tolerance != limits.xy_goal_tolerance)
     {
       // change limits if dist_tolerance is set, and different from the current values
-      ROS_INFO_STREAM("updating xy_goal_tolerance to tolerance from action: " << dist_tolerance);
+      ROS_INFO_STREAM_NAMED(LOGNAME, "updating xy_goal_tolerance to tolerance from action: " << dist_tolerance);
       limits.xy_goal_tolerance = dist_tolerance;
       reconfigure_needed = true;
     }
@@ -194,8 +198,8 @@ void MPPIController::updateTolerances(double dist_tolerance, double angle_tolera
   else if (latest_limits_.xy_goal_tolerance != limits.xy_goal_tolerance)
   {
     // change limits if dist_tolerance is not set, and different from latest values set by dynamic reconfigure
-    ROS_INFO_STREAM(
-        "updating xy_goal_tolerance to tolerance from previous dyn reconfig: " << latest_limits_.xy_goal_tolerance);
+    ROS_INFO_STREAM_NAMED(LOGNAME, "updating xy_goal_tolerance to tolerance from previous dyn reconfig: "
+                                       << latest_limits_.xy_goal_tolerance);
     limits.xy_goal_tolerance = latest_limits_.xy_goal_tolerance;
     reconfigure_needed = true;
   }
@@ -205,7 +209,7 @@ void MPPIController::updateTolerances(double dist_tolerance, double angle_tolera
     if (angle_tolerance != limits.yaw_goal_tolerance)
     {
       // change limits if angle_tolerance is set, and different from the current values;
-      ROS_INFO_STREAM("updating yaw_goal_tolerance to tolerance from action: " << angle_tolerance);
+      ROS_INFO_STREAM_NAMED(LOGNAME, "updating yaw_goal_tolerance to tolerance from action: " << angle_tolerance);
       limits.yaw_goal_tolerance = angle_tolerance;
       reconfigure_needed = true;
     }
@@ -213,8 +217,8 @@ void MPPIController::updateTolerances(double dist_tolerance, double angle_tolera
   else if (latest_limits_.yaw_goal_tolerance != limits.yaw_goal_tolerance)
   {
     // change limits if angle_tolerance is not set, and different from latest values set by dynamic reconfigure
-    ROS_INFO_STREAM(
-        "updating yaw_goal_tolerance to tolerance from previous dyn reconfig: " << latest_limits_.yaw_goal_tolerance);
+    ROS_INFO_STREAM_NAMED(LOGNAME, "updating yaw_goal_tolerance to tolerance from previous dyn reconfig: "
+                                       << latest_limits_.yaw_goal_tolerance);
     limits.yaw_goal_tolerance = latest_limits_.yaw_goal_tolerance;
     reconfigure_needed = true;
   }
@@ -231,6 +235,11 @@ void MPPIController::reconfigureCB(const mppi_controller::MPPIControllerConfig& 
   optimizer_.setParams(config);
   latest_limits_.xy_goal_tolerance = config.xy_goal_tolerance;
   latest_limits_.yaw_goal_tolerance = config.yaw_goal_tolerance;
+
+  auto limits = planner_util_.getCurrentLimits();
+  limits.trans_stopped_vel = config.trans_stopped_vel;
+  limits.theta_stopped_vel = config.theta_stopped_vel;
+  planner_util_.reconfigureCB(limits, false);
 }
 
 }  // namespace mppi_controller

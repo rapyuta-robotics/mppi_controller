@@ -11,9 +11,11 @@ set(XTENSOR_USE_XSIMD 1)
 
 # set(XTENSOR_DEFAULT_LAYOUT column_major)  # row_major, column_major
 # set(XTENSOR_DEFAULT_TRAVERSAL row_major)  # row_major, column_major
+add_subdirectory(external/xsimd)
+add_subdirectory(external/xtl)
+add_subdirectory(external/xtensor)
+
 find_package(catkin REQUIRED)
-find_package(xtensor REQUIRED)
-find_package(xsimd REQUIRED)
 
 set(dependencies_pkgs
   angles
@@ -41,28 +43,10 @@ find_package(catkin REQUIRED COMPONENTS ${dependencies_pkgs})
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
+  external/xsimd/include
+  external/xtensor/include
+  external/xtl/include
 )
-
-check_cxx_compiler_flag("-mno-avx512f" COMPILER_SUPPORTS_AVX512)
-check_cxx_compiler_flag("-msse4.2" COMPILER_SUPPORTS_SSE4)
-check_cxx_compiler_flag("-mavx2" COMPILER_SUPPORTS_AVX2)
-check_cxx_compiler_flag("-mfma" COMPILER_SUPPORTS_FMA)
-
-if(COMPILER_SUPPORTS_AVX512)
-  add_compile_options(-mno-avx512f)
-endif()
-
-if(COMPILER_SUPPORTS_SSE4)
-  add_compile_options(-msse4.2)
-endif()
-
-if(COMPILER_SUPPORTS_AVX2)
-  add_compile_options(-mavx2)
-endif()
-
-if(COMPILER_SUPPORTS_FMA)
-  add_compile_options(-mfma)
-endif()
 
 # If building one the same hardware to be deployed on, try `-march=native`!
 add_compile_options(-O3 -finline-limit=10000000 -ffp-contract=fast -ffast-math -mtune=generic)
@@ -114,9 +98,8 @@ set(libraries mppi_critics mppi_controller)
 
 foreach(lib IN LISTS libraries)
   target_compile_options(${lib} PUBLIC -fconcepts)
-  target_include_directories(${lib} PUBLIC ${xsimd_INCLUDE_DIRS}) # ${OpenMP_INCLUDE_DIRS}
-  target_link_libraries(${lib} xtensor xtensor::optimize xtensor::use_xsimd ${catkin_LIBRARIES})
-  add_dependencies(${lib} ${PROJECT_NAME}_gencfg ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+  target_link_libraries(${lib} ${catkin_LIBRARIES})
+  add_dependencies(${lib} ${PROJECT_NAME}_gencfg ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} xsimd xtensor xtl)
 endforeach()
 
 install(TARGETS mppi_critics mppi_controller

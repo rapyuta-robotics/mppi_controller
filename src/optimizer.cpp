@@ -38,7 +38,6 @@ void Optimizer::initialize(const ros::NodeHandle& parent_nh, const std::string& 
   parent_nh_ = parent_nh;
   name_ = name;
   costmap_ros_ = costmap_ros;
-  costmap_ = costmap_ros_->getCostmap();
 
   critic_manager_.on_configure(parent_nh_, name_, costmap_ros_);
 

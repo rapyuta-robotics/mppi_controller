@@ -81,7 +81,6 @@ public:
     parent_nh_ = parent_nh;
     pnh_ = ros::NodeHandle(parent_nh, name);
     costmap_ros_ = costmap_ros;
-    costmap_ = costmap_ros_->getCostmap();
 
     dsrv_ = std::make_unique<dynamic_reconfigure::Server<Config>>(pnh_);
     dsrv_->setCallback(boost::bind(&CriticFunction::reconfigureCB, this, _1, _2));
@@ -119,7 +118,6 @@ protected:
   ros::NodeHandle parent_nh_;
   ros::NodeHandle pnh_;
   costmap_2d::Costmap2DROS* costmap_ros_;
-  costmap_2d::Costmap2D* costmap_{ nullptr };
 
   // common parameters to all critics
   bool enabled_ = false;

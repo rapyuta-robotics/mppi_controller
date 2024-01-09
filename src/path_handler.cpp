@@ -31,29 +31,24 @@ void PathHandler::initialize(const ros::NodeHandle& parent_nh, const std::string
   pnh_ = ros::NodeHandle(parent_nh_, name_);
   costmap_ros_ = costmap;
   tf_buffer_ = buffer;
-
-  pnh_.param<double>("max_robot_pose_search_dist", max_robot_pose_search_dist_, getMaxCostmapDist());
-  pnh_.param<double>("prune_distance", prune_distance_, 1.5);
-  pnh_.param<double>("transform_tolerance", transform_tolerance_, 0.1);
-  pnh_.param<bool>("enforce_path_inversion", enforce_path_inversion_, false);
-
-  if (enforce_path_inversion_)
-  {
-    pnh_.param<double>("inversion_xy_tolerance", inversion_xy_tolerance_, 0.2);
-    pnh_.param<double>("inversion_yaw_tolerance", inversion_yaw_tolerance, 0.4);
-    inversion_locale_ = 0u;
-  }
 }
 
 std::pair<nav_msgs::Path, PathIterator>
 PathHandler::getGlobalPlanConsideringBoundsInCostmapFrame(const geometry_msgs::PoseStamped& global_pose)
 {
+  double max_robot_pose_search_dist;
+  double prune_distance;
+  {
+    std::lock_guard<std::mutex> lock(params_mutex_);
+    max_robot_pose_search_dist = max_robot_pose_search_dist_;
+    prune_distance = prune_distance_;
+  }
+
   auto begin = global_plan_up_to_inversion_.poses.begin();
 
   // Limit the search for the closest pose up to max_robot_pose_search_dist on the path
-  auto closest_pose_upper_bound =
-      utils::firstAfterIntegratedDistance(global_plan_up_to_inversion_.poses.begin(),
-                                          global_plan_up_to_inversion_.poses.end(), max_robot_pose_search_dist_);
+  auto closest_pose_upper_bound = utils::firstAfterIntegratedDistance(
+      global_plan_up_to_inversion_.poses.begin(), global_plan_up_to_inversion_.poses.end(), max_robot_pose_search_dist);
 
   // Find closest point to the robot
   auto closest_point = utils::minBy(begin, closest_pose_upper_bound,
@@ -65,7 +60,7 @@ PathHandler::getGlobalPlanConsideringBoundsInCostmapFrame(const geometry_msgs::P
   transformed_plan.header.stamp = global_pose.header.stamp;
 
   auto pruned_plan_end =
-      utils::firstAfterIntegratedDistance(closest_point, global_plan_up_to_inversion_.poses.end(), prune_distance_);
+      utils::firstAfterIntegratedDistance(closest_point, global_plan_up_to_inversion_.poses.end(), prune_distance);
 
   unsigned int mx, my;
   // Find the furthest relevant pose on the path to consider within costmap
@@ -143,13 +138,19 @@ uint32_t PathHandler::transformPath(const geometry_msgs::PoseStamped& robot_pose
 bool PathHandler::transformPose(const std::string& frame, const geometry_msgs::PoseStamped& in_pose,
                                 geometry_msgs::PoseStamped& out_pose) const
 {
+  double transform_tolerance;
+  {
+    std::lock_guard<std::mutex> lock(params_mutex_);
+    transform_tolerance = transform_tolerance_;
+  }
+
   if (in_pose.header.frame_id == frame) {
     out_pose = in_pose;
     return true;
   }
 
   try {
-    tf_buffer_->transform(in_pose, out_pose, frame, ros::Duration(transform_tolerance_));
+    tf_buffer_->transform(in_pose, out_pose, frame, ros::Duration(transform_tolerance));
     out_pose.header.frame_id = frame;
     return true;
   } catch (tf2::TransformException & ex) {
@@ -167,9 +168,16 @@ double PathHandler::getMaxCostmapDist()
 
 void PathHandler::setPath(const nav_msgs::Path& plan)
 {
+  bool enforce_path_inversion;
+  {
+    std::lock_guard<std::mutex> lock(params_mutex_);
+    enforce_path_inversion = enforce_path_inversion_;
+  }
+
   global_plan_ = plan;
   global_plan_up_to_inversion_ = global_plan_;
-  if (enforce_path_inversion_) {
+  if (enforce_path_inversion)
+  {
     inversion_locale_ = utils::removePosesAfterFirstInversion(global_plan_up_to_inversion_);
   }
 }
@@ -186,6 +194,14 @@ void PathHandler::prunePlan(nav_msgs::Path& plan, const PathIterator end)
 
 bool PathHandler::isWithinInversionTolerances(const geometry_msgs::PoseStamped& robot_pose) const
 {
+  double inversion_xy_tolerance;
+  double inversion_yaw_tolerance;
+  {
+    std::lock_guard<std::mutex> lock(params_mutex_);
+    inversion_xy_tolerance = inversion_xy_tolerance_;
+    inversion_yaw_tolerance = inversion_yaw_tolerance_;
+  }
+
   // Keep full path if we are within tolerance of the inversion pose
   const auto last_pose = global_plan_up_to_inversion_.poses.back();
   float distance = hypotf(
@@ -196,7 +212,26 @@ bool PathHandler::isWithinInversionTolerances(const geometry_msgs::PoseStamped& 
     tf2::getYaw(robot_pose.pose.orientation),
     tf2::getYaw(last_pose.pose.orientation));
 
-  return distance <= inversion_xy_tolerance_ && fabs(angle_distance) <= inversion_yaw_tolerance;
+  return distance <= inversion_xy_tolerance && fabs(angle_distance) <= inversion_yaw_tolerance;
+}
+
+void PathHandler::setParams(const mppi_controller::MPPIControllerConfig& config)
+{
+  std::lock_guard<std::mutex> lock(params_mutex_);
+
+  max_robot_pose_search_dist_ =
+      config.max_robot_pose_search_dist <= 0 ? getMaxCostmapDist() : config.max_robot_pose_search_dist;
+  prune_distance_ = config.prune_distance;
+  transform_tolerance_ = config.transform_tolerance;
+  inversion_xy_tolerance_ = config.inversion_xy_tolerance;
+  inversion_yaw_tolerance_ = config.inversion_yaw_tolerance;
+
+  if (!enforce_path_inversion_ && config.enforce_path_inversion)
+  {
+    inversion_locale_ = 0u;
+  }
+
+  enforce_path_inversion_ = config.enforce_path_inversion;
 }
 
 }  // namespace mppi

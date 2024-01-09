@@ -26,6 +26,7 @@
 #include "geometry_msgs/PoseStamped.h"
 #include <nav_msgs/Path.h>
 #include <costmap_2d/costmap_2d_ros.h>
+#include "mppi_controller/MPPIControllerConfig.h"
 
 namespace mppi
 {
@@ -81,6 +82,12 @@ public:
    * @return mbf_msgs::ExePathResult::SUCCESS if successful, otherwise failure
    */
   uint32_t transformPath(const geometry_msgs::PoseStamped& robot_pose, nav_msgs::Path& local_plan);
+
+  /**
+   * @brief Set parameters for path handler
+   * @param config Dynamic reconfigure config
+   */
+  void setParams(const mppi_controller::MPPIControllerConfig& config);
 
 protected:
   /**
@@ -138,13 +145,14 @@ protected:
   nav_msgs::Path global_plan_;
   nav_msgs::Path global_plan_up_to_inversion_;
 
+  mutable std::mutex params_mutex_;
   double max_robot_pose_search_dist_{ 0 };
   double prune_distance_{ 0 };
   double transform_tolerance_{ 0 };
   double inversion_xy_tolerance_{ 0.2 };
-  double inversion_yaw_tolerance{ 0.4 };
+  double inversion_yaw_tolerance_{ 0.4 };
   bool enforce_path_inversion_{ false };
-  unsigned int inversion_locale_{ 0u };
+  std::atomic<unsigned int> inversion_locale_{ 0u };
 };
 }  // namespace mppi
 

@@ -52,7 +52,7 @@ struct NavTolerances
 class MPPIController : public mbf_costmap_core::CostmapController
 {
 private:
-  static constexpr auto LOGNAME = "Controller";
+  static constexpr auto LOGNAME = "MPPIController";
 
 public:
   /**

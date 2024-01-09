@@ -226,7 +226,6 @@ protected:
   mutable std::mutex param_mtx_;
 
   costmap_2d::Costmap2DROS* costmap_ros_;
-  costmap_2d::Costmap2D* costmap_;
 
   std::shared_ptr<MotionModel> motion_model_;
 

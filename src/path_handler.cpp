@@ -29,7 +29,7 @@ void PathHandler::initialize(const ros::NodeHandle& parent_nh, const std::string
   parent_nh_ = parent_nh;
   name_ = name;
   pnh_ = ros::NodeHandle(parent_nh_, name_);
-  costmap_ = costmap;
+  costmap_ros_ = costmap;
   tf_buffer_ = buffer;
 
   pnh_.param<double>("max_robot_pose_search_dist", max_robot_pose_search_dist_, getMaxCostmapDist());
@@ -61,7 +61,7 @@ PathHandler::getGlobalPlanConsideringBoundsInCostmapFrame(const geometry_msgs::P
                                     { return mbf_utility::distance(global_pose, ps); });
 
   nav_msgs::Path transformed_plan;
-  transformed_plan.header.frame_id = costmap_->getGlobalFrameID();
+  transformed_plan.header.frame_id = costmap_ros_->getGlobalFrameID();
   transformed_plan.header.stamp = global_pose.header.stamp;
 
   auto pruned_plan_end =
@@ -78,11 +78,11 @@ PathHandler::getGlobalPlanConsideringBoundsInCostmapFrame(const geometry_msgs::P
     geometry_msgs::PoseStamped costmap_plan_pose;
     global_plan_pose->header.stamp = global_pose.header.stamp;
     global_plan_pose->header.frame_id = global_plan_.header.frame_id;
-    transformPose(costmap_->getGlobalFrameID(), *global_plan_pose, costmap_plan_pose);
+    transformPose(costmap_ros_->getGlobalFrameID(), *global_plan_pose, costmap_plan_pose);
 
     // Check if pose is inside the costmap
-    if (!costmap_->getCostmap()->worldToMap(
-        costmap_plan_pose.pose.position.x, costmap_plan_pose.pose.position.y, mx, my))
+    if (!costmap_ros_->getCostmap()->worldToMap(costmap_plan_pose.pose.position.x, costmap_plan_pose.pose.position.y,
+                                                mx, my))
     {
       return {transformed_plan, closest_point};
     }
@@ -160,7 +160,7 @@ bool PathHandler::transformPose(const std::string& frame, const geometry_msgs::P
 
 double PathHandler::getMaxCostmapDist()
 {
-  const auto & costmap = costmap_->getCostmap();
+  const auto& costmap = costmap_ros_->getCostmap();
   return static_cast<double>(std::max(costmap->getSizeInCellsX(), costmap->getSizeInCellsY())) *
          costmap->getResolution() * 0.50;
 }

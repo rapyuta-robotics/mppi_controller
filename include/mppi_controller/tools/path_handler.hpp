@@ -130,7 +130,7 @@ protected:
   bool isWithinInversionTolerances(const geometry_msgs::PoseStamped& robot_pose) const;
 
   std::string name_;
-  costmap_2d::Costmap2DROS* costmap_;
+  costmap_2d::Costmap2DROS* costmap_ros_;
   tf2_ros::Buffer* tf_buffer_;
   ros::NodeHandle parent_nh_;
   ros::NodeHandle pnh_;

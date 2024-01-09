@@ -41,6 +41,8 @@ struct NavTolerances
 {
   double xy_goal_tolerance;
   double yaw_goal_tolerance;
+  double theta_stopped_vel;
+  double trans_stopped_vel;
 };
 
 /**
@@ -49,6 +51,9 @@ struct NavTolerances
  */
 class MPPIController : public mbf_costmap_core::CostmapController
 {
+private:
+  static constexpr auto LOGNAME = "MPPIController";
+
 public:
   /**
    * @brief Constructor for mppi::MPPIController

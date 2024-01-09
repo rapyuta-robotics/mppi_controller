@@ -2,12 +2,10 @@ cmake_minimum_required(VERSION 3.5)
 project(mppi_controller)
 
 set(CMAKE_CXX_STANDARD 17)
-add_definitions(-DXTENSOR_ENABLE_XSIMD)
-add_definitions(-DXTENSOR_USE_XSIMD)
 
 set(XTENSOR_USE_TBB 0)
 set(XTENSOR_USE_OPENMP 0)
-set(XTENSOR_USE_XSIMD 1)
+set(XTENSOR_USE_XSIMD 0)
 
 # set(XTENSOR_DEFAULT_LAYOUT column_major)  # row_major, column_major
 # set(XTENSOR_DEFAULT_TRAVERSAL row_major)  # row_major, column_major
@@ -99,7 +97,7 @@ set(libraries mppi_critics mppi_controller)
 foreach(lib IN LISTS libraries)
   target_compile_options(${lib} PUBLIC -fconcepts)
   target_link_libraries(${lib} ${catkin_LIBRARIES})
-  add_dependencies(${lib} ${PROJECT_NAME}_gencfg ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} xsimd xtensor xtl)
+  add_dependencies(${lib} ${PROJECT_NAME}_gencfg ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} xtensor xtl)
 endforeach()
 
 install(TARGETS mppi_critics mppi_controller

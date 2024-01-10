@@ -62,8 +62,6 @@ float ObstaclesCritic::findCircumscribedCost(costmap_2d::Costmap2DROS* costmap)
     ros::NodeHandle inflation_nh(ros::names::parentNamespace(parent_nh_.getNamespace()), inflation_layer->getName());
     inflation_scale_factor_ = static_cast<float>(inflation_nh.param("cost_scaling_factor", 0.0));
     inflation_radius_ = static_cast<float>(inflation_nh.param("inflation_radius", 0.0));
-    ROS_ERROR_NAMED(name_, "Inflation layer found with inflation radius %f and cost scaling factor %f",
-                    inflation_radius_, inflation_scale_factor_);
     break;
   }
 

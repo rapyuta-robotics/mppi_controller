@@ -146,12 +146,7 @@ protected:
   nav_msgs::Path global_plan_up_to_inversion_;
 
   mutable std::mutex params_mutex_;
-  double max_robot_pose_search_dist_{ 0 };
-  double prune_distance_{ 0 };
-  double transform_tolerance_{ 0 };
-  double inversion_xy_tolerance_{ 0.2 };
-  double inversion_yaw_tolerance_{ 0.4 };
-  bool enforce_path_inversion_{ false };
+  mppi_controller::MPPIControllerConfig config_;
   std::atomic<unsigned int> inversion_locale_{ 0u };
 };
 }  // namespace mppi

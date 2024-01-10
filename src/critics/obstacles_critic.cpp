@@ -21,7 +21,6 @@ namespace mppi::critics
 void ObstaclesCritic::initialize()
 {
   world_model_ = std::make_unique<base_local_planner::CostmapModel>(*costmap_ros_->getCostmap());
-  getInflationLayerName();
   possibly_inscribed_cost_ = findCircumscribedCost(costmap_ros_);
 
   if (possibly_inscribed_cost_ < 1.0)
@@ -32,32 +31,6 @@ void ObstaclesCritic::initialize()
                            "github.com/ros-planning/navigation2/tree/main/nav2_smac_planner#potential-fields"
                            " for full instructions. This will substantially impact run-time performance.");
   }
-}
-
-void ObstaclesCritic::getInflationLayerName()
-{
-  // retrieving the name of the costmap inflation layer
-  ros::NodeHandle mbf_nh(ros::names::parentNamespace(parent_nh_.getNamespace()));
-  ros::NodeHandle local_costmap_nh(mbf_nh, "local_costmap");
-  XmlRpc::XmlRpcValue plugin_list;
-  if (!local_costmap_nh.getParam("plugins", plugin_list))
-  {
-    ROS_WARN_NAMED(name_, "Failed to retrieve parameter from namespace %s",
-                   local_costmap_nh.resolveName("plugins").c_str());
-    return;
-  }
-
-  // Iterate through the list to find the InflationLayer
-  for (int i = 0; i < plugin_list.size(); ++i)
-  {
-    std::string type = plugin_list[i]["type"];
-    if (type == "costmap_2d::InflationLayer")
-    {
-      inflation_layer_name_ = "local_costmap/" + static_cast<std::string>(plugin_list[i]["name"]);
-      break;
-    }
-  }
-  ROS_WARN_COND_NAMED(inflation_layer_name_.empty(), name_, "Inflation layer not found in plugins");
 }
 
 float ObstaclesCritic::findCircumscribedCost(costmap_2d::Costmap2DROS* costmap)
@@ -71,21 +44,13 @@ float ObstaclesCritic::findCircumscribedCost(costmap_2d::Costmap2DROS* costmap)
     return circumscribed_cost_;
   }
 
-  if (inflation_layer_name_.empty())
-  {
-    ROS_WARN_NAMED(name_, "Inflation layer not found in plugins");
-    circumscribed_radius_ = static_cast<float>(circum_radius);
-    circumscribed_cost_ = static_cast<float>(result);
-    return circumscribed_cost_;
-  }
-
   // check if the costmap has an inflation layer
   bool inflation_layer_found = false;
   for (auto layer = costmap->getLayeredCostmap()->getPlugins()->begin();
        layer != costmap->getLayeredCostmap()->getPlugins()->end(); ++layer)
   {
     auto inflation_layer = boost::dynamic_pointer_cast<costmap_2d::InflationLayer>(*layer);
-    if (!inflation_layer || inflation_layer->getName() != inflation_layer_name_)
+    if (!inflation_layer || typeid(*inflation_layer) != typeid(costmap_2d::InflationLayer))
     {
       continue;
     }
@@ -97,6 +62,8 @@ float ObstaclesCritic::findCircumscribedCost(costmap_2d::Costmap2DROS* costmap)
     ros::NodeHandle inflation_nh(ros::names::parentNamespace(parent_nh_.getNamespace()), inflation_layer->getName());
     inflation_scale_factor_ = static_cast<float>(inflation_nh.param("cost_scaling_factor", 0.0));
     inflation_radius_ = static_cast<float>(inflation_nh.param("inflation_radius", 0.0));
+    ROS_ERROR_NAMED(name_, "Inflation layer found with inflation radius %f and cost scaling factor %f",
+                    inflation_radius_, inflation_scale_factor_);
     break;
   }
 

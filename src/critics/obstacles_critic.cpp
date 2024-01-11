@@ -22,6 +22,7 @@ void ObstaclesCritic::initialize()
 {
   world_model_ = std::make_unique<base_local_planner::CostmapModel>(*costmap_ros_->getCostmap());
   possibly_inscribed_cost_ = findCircumscribedCost(costmap_ros_);
+  pnh_.param("inflation_layer_name", inflation_layer_name_);
 
   if (possibly_inscribed_cost_ < 1.0)
   {
@@ -50,7 +51,7 @@ float ObstaclesCritic::findCircumscribedCost(costmap_2d::Costmap2DROS* costmap)
        layer != costmap->getLayeredCostmap()->getPlugins()->end(); ++layer)
   {
     auto inflation_layer = boost::dynamic_pointer_cast<costmap_2d::InflationLayer>(*layer);
-    if (!inflation_layer || typeid(*inflation_layer) != typeid(costmap_2d::InflationLayer))
+    if (!inflation_layer || (!inflation_layer_name_.empty() && inflation_layer->getName() != inflation_layer_name_))
     {
       continue;
     }

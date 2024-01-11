@@ -99,6 +99,7 @@ protected:
 
   unsigned int power_{0};
   float repulsion_weight_, critical_weight_{ 0 };
+  std::string inflation_layer_name_{ "" };
 };
 
 }  // namespace mppi::critics

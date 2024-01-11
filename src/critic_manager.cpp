@@ -21,12 +21,10 @@ CriticManager::CriticManager() : loader_("mppi_controller", "mppi::critics::Crit
 {
 }
 
-void CriticManager::on_configure(const ros::NodeHandle& parent_nh, const std::string& name,
-                                 costmap_2d::Costmap2DROS* costmap_ros)
+void CriticManager::on_configure(const ros::NodeHandle& parent_nh, costmap_2d::Costmap2DROS* costmap_ros)
 {
   parent_nh_ = parent_nh;
   costmap_ros_ = costmap_ros;
-  name_ = name;
   getParams();
 }
 

@@ -54,10 +54,9 @@ public:
   /**
    * @brief Configure critic manager on bringup and load plugins
    * @param parent_nh Private parent node handle
-   * @param name Name of plugin
    * @param costmap_ros Costmap2DROS object of environment
    */
-  void on_configure(const ros::NodeHandle& parent_nh, const std::string& name, costmap_2d::Costmap2DROS* costmap_ros);
+  void on_configure(const ros::NodeHandle& parent_nh, costmap_2d::Costmap2DROS* costmap_ros);
 
   /**
    * @brief Score trajectories by the set of loaded critic functions
@@ -77,7 +76,6 @@ protected:
 protected:
   ros::NodeHandle parent_nh_;
   costmap_2d::Costmap2DROS* costmap_ros_;
-  std::string name_;
 
   pluginlib::ClassLoader<critics::CriticBase> loader_;
   std::vector<boost::shared_ptr<critics::CriticBase>> critics_;

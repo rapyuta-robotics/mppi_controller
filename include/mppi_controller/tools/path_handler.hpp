@@ -55,12 +55,10 @@ public:
   /**
    * @brief Initialize path handler on bringup
    * @param parent_nh Private parent node handle
-   * @param name Name of plugin
    * @param costmap_ros Costmap2DROS object of environment
    * @param tf TF buffer for transformations
    */
-  void initialize(const ros::NodeHandle& parent_nh, const std::string& name, costmap_2d::Costmap2DROS*,
-                  tf2_ros::Buffer*);
+  void initialize(const ros::NodeHandle& parent_nh, costmap_2d::Costmap2DROS*, tf2_ros::Buffer*);
 
   /**
    * @brief Set new reference path
@@ -136,7 +134,6 @@ protected:
    */
   bool isWithinInversionTolerances(const geometry_msgs::PoseStamped& robot_pose) const;
 
-  std::string name_;
   costmap_2d::Costmap2DROS* costmap_ros_;
   tf2_ros::Buffer* tf_buffer_;
   ros::NodeHandle parent_nh_;

@@ -21,18 +21,18 @@
 namespace mppi
 {
 
-void TrajectoryVisualizer::on_configure(const ros::NodeHandle& parent_nh, const std::string& name,
-                                        const std::string& frame_id)
+void TrajectoryVisualizer::on_configure(ros::NodeHandle& parent_nh, const std::string& frame_id)
 {
   frame_id_ = frame_id;
-  ros::NodeHandle pnh(parent_nh, name);
-  trajectory_publisher_ = pnh.advertise<visualization_msgs::MarkerArray>("trajectories", 1);
-  transformed_path_pub_ = pnh.advertise<nav_msgs::Path>("transformed_global_plan", 1);
-
-  pnh.param<int>("trajectory_step", trajectory_step_, 5);
-  pnh.param<int>("time_step", time_step_, 3);
-
+  trajectory_publisher_ = parent_nh.advertise<visualization_msgs::MarkerArray>("trajectories", 1);
+  transformed_path_pub_ = parent_nh.advertise<nav_msgs::Path>("transformed_global_plan", 1);
   reset();
+}
+
+void TrajectoryVisualizer::setParams(const mppi_controller::MPPIControllerConfig& config)
+{
+  trajectory_step_ = config.trajectory_step;
+  time_step_ = config.time_step;
 }
 
 void TrajectoryVisualizer::add(

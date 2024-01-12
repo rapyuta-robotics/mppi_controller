@@ -30,11 +30,10 @@ void MPPIController::initialize(std::string name, tf2_ros::Buffer* tf, costmap_2
   pnh_ = ros::NodeHandle(parent_nh_, name);
   costmap_ros_ = costmap_ros;
   tf_buffer_ = tf;
-  name_ = name;
 
   // Configure composed objects
-  optimizer_.initialize(pnh_, name_, costmap_ros_, MPPIControllerConfig());
-  path_handler_.initialize(pnh_, name_, costmap_ros_, tf_buffer_);
+  optimizer_.initialize(pnh_, costmap_ros_, MPPIControllerConfig());
+  path_handler_.initialize(pnh_, costmap_ros_, tf_buffer_);
   planner_util_.initialize(tf, costmap_ros_->getCostmap(), costmap_ros_->getGlobalFrameID());
 
   dsrv_ = std::make_unique<dynamic_reconfigure::Server<MPPIControllerConfig>>(pnh_);
@@ -46,7 +45,7 @@ void MPPIController::initialize(std::string name, tf2_ros::Buffer* tf, costmap_2
 
   initialized_ = true;
 
-  trajectory_visualizer_.on_configure(pnh_, name_, costmap_ros_->getGlobalFrameID());
+  trajectory_visualizer_.on_configure(pnh_, costmap_ros_->getGlobalFrameID());
 
   ROS_INFO_NAMED(LOGNAME, "Inititalized");
 }
@@ -234,6 +233,7 @@ void MPPIController::reconfigureCB(const mppi_controller::MPPIControllerConfig& 
   visualize_ = config.visualize;
   optimizer_.setParams(config);
   path_handler_.setParams(config);
+  trajectory_visualizer_.setParams(config);
   latest_limits_.xy_goal_tolerance = config.xy_goal_tolerance;
   latest_limits_.yaw_goal_tolerance = config.yaw_goal_tolerance;
 

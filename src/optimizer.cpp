@@ -32,17 +32,17 @@ namespace mppi
 using namespace xt::placeholders;  // NOLINT
 using xt::evaluation_strategy::immediate;
 
-void Optimizer::initialize(const ros::NodeHandle& parent_nh, const std::string& name,
-                           costmap_2d::Costmap2DROS* costmap_ros, const mppi_controller::MPPIControllerConfig& config)
+void Optimizer::initialize(const ros::NodeHandle& parent_nh, costmap_2d::Costmap2DROS* costmap_ros,
+                           const mppi_controller::MPPIControllerConfig& config)
 {
   parent_nh_ = parent_nh;
-  name_ = name;
+
   costmap_ros_ = costmap_ros;
 
-  critic_manager_.on_configure(parent_nh_, name_, costmap_ros_);
+  critic_manager_.on_configure(parent_nh_, costmap_ros_);
 
   models::OptimizerSettings default_settings;
-  noise_generator_.initialize(parent_nh_, default_settings, false, name_);
+  noise_generator_.initialize(parent_nh_, default_settings, false);
   setParams(config);
 }
 
@@ -85,6 +85,7 @@ void Optimizer::setParams(const mppi_controller::MPPIControllerConfig& config)
   setMotionModel(config.motion_model);
   setOffset(config.controller_frequency);
   reset();
+  noise_generator_.setParams(config);
 }
 
 void Optimizer::setOffset(double controller_frequency)

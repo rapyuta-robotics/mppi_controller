@@ -53,7 +53,6 @@ generate_dynamic_reconfigure_options(
   cfg/BaseCritic.cfg
   cfg/MPPIController.cfg
   cfg/Ackermann.cfg
-  cfg/NoiseGenerator.cfg
   cfg/GoalAngleCritic.cfg
   cfg/GoalCritic.cfg
   cfg/ObstacleCritic.cfg

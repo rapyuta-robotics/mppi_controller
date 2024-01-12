@@ -64,11 +64,10 @@ public:
   /**
    * @brief Initializes optimizer on startup
    * @param parent_nh NodeHandle of parent
-   * @param name Name of plugin
    * @param costmap_ros Costmap2DROS object of environment
    * @param config Config object for optimizer
    */
-  void initialize(const ros::NodeHandle& parent_nh, const std::string& name, costmap_2d::Costmap2DROS* costmap_ros,
+  void initialize(const ros::NodeHandle& parent_nh, costmap_2d::Costmap2DROS* costmap_ros,
                   const mppi_controller::MPPIControllerConfig& config);
 
   /**
@@ -221,7 +220,6 @@ protected:
 
 protected:
   ros::NodeHandle parent_nh_;
-  std::string name_;
 
   mutable std::mutex param_mtx_;
 

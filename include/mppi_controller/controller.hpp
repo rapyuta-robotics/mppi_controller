@@ -138,7 +138,6 @@ protected:
 
   void reconfigureCB(const mppi_controller::MPPIControllerConfig& config, uint32_t level);
 
-  std::string name_;
   ros::NodeHandle parent_nh_;
   ros::NodeHandle pnh_;
   costmap_2d::Costmap2DROS* costmap_ros_;

@@ -221,7 +221,12 @@ protected:
 protected:
   ros::NodeHandle parent_nh_;
 
-  mutable std::mutex param_mtx_;
+  mutable std::mutex settings_mtx_;
+  mutable std::mutex mmodel_mtx_;
+  mutable std::mutex state_mtx_;
+  mutable std::mutex cs_mtx_;
+  mutable std::mutex gt_mtx_;
+  mutable std::mutex costs_mtx_;
 
   costmap_2d::Costmap2DROS* costmap_ros_;
 

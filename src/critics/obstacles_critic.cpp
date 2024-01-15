@@ -22,6 +22,7 @@ void ObstaclesCritic::initialize()
 {
   world_model_ = std::make_unique<base_local_planner::CostmapModel>(*costmap_ros_->getCostmap());
   possibly_inscribed_cost_ = findCircumscribedCost(costmap_ros_);
+  pnh_.param("inflation_layer_name", inflation_layer_name_);
 
   if (possibly_inscribed_cost_ < 1.0)
   {
@@ -36,7 +37,6 @@ void ObstaclesCritic::initialize()
 float ObstaclesCritic::findCircumscribedCost(costmap_2d::Costmap2DROS* costmap)
 {
   double result = -1.0;
-  bool inflation_layer_found = false;
 
   const double circum_radius = costmap->getLayeredCostmap()->getCircumscribedRadius();
   if (static_cast<float>(circum_radius) == circumscribed_radius_)
@@ -46,11 +46,12 @@ float ObstaclesCritic::findCircumscribedCost(costmap_2d::Costmap2DROS* costmap)
   }
 
   // check if the costmap has an inflation layer
+  bool inflation_layer_found = false;
   for (auto layer = costmap->getLayeredCostmap()->getPlugins()->begin();
        layer != costmap->getLayeredCostmap()->getPlugins()->end(); ++layer)
   {
     auto inflation_layer = boost::dynamic_pointer_cast<costmap_2d::InflationLayer>(*layer);
-    if (!inflation_layer)
+    if (!inflation_layer || (!inflation_layer_name_.empty() && inflation_layer->getName() != inflation_layer_name_))
     {
       continue;
     }
@@ -59,21 +60,18 @@ float ObstaclesCritic::findCircumscribedCost(costmap_2d::Costmap2DROS* costmap)
     const double resolution = costmap->getCostmap()->getResolution();
     result = inflation_layer->computeCost(circum_radius / resolution);
 
-    // TODO: add methods to get inflation radius and cost scaling factor from inflation layer
-    ros::NodeHandle costmap_nh(parent_nh_, "local_costmap");
-    ros::NodeHandle inflation_nh(costmap_nh, inflation_layer->getName());
+    ros::NodeHandle inflation_nh(ros::names::parentNamespace(parent_nh_.getNamespace()), inflation_layer->getName());
     inflation_scale_factor_ = static_cast<float>(inflation_nh.param("cost_scaling_factor", 0.0));
     inflation_radius_ = static_cast<float>(inflation_nh.param("inflation_radius", 0.0));
+    break;
   }
 
-  if (!inflation_layer_found)
-  {
-    ROS_WARN_NAMED(name_, "No inflation layer found in costmap configuration. "
-                          "If this is an SE2-collision checking plugin, it cannot use costmap potential "
-                          "field to speed up collision checking by only checking the full footprint "
-                          "when robot is within possibly-inscribed radius of an obstacle. This may "
-                          "significantly slow down planning times and not avoid anything but absolute collisions!");
-  }
+  ROS_WARN_COND_NAMED(!inflation_layer_found, name_,
+                      "No inflation layer found in costmap configuration. "
+                      "If this is an SE2-collision checking plugin, it cannot use costmap potential "
+                      "field to speed up collision checking by only checking the full footprint "
+                      "when robot is within possibly-inscribed radius of an obstacle. This may "
+                      "significantly slow down planning times and not avoid anything but absolute collisions!");
 
   circumscribed_radius_ = static_cast<float>(circum_radius);
   circumscribed_cost_ = static_cast<float>(result);
@@ -135,10 +133,6 @@ void ObstaclesCritic::score(CriticData& data)
     for (size_t j = 0; j < traj_len; j++)
     {
       pose_cost = costAtPose(traj.x(i, j), traj.y(i, j), traj.yaws(i, j));
-      if (pose_cost.cost < 1.0f)
-      {
-        continue;
-      }  // In free space
 
       if (inCollision(pose_cost.cost))
       {
@@ -159,8 +153,10 @@ void ObstaclesCritic::score(CriticData& data)
       {
         traj_cost += (collision_margin_distance_ - dist_to_obj);
       }
-      else if (!near_goal)
-      {  // Generally prefer trajectories further from obstacles
+
+      // Generally prefer trajectories further from obstacles
+      if (!near_goal)
+      {
         repulsive_cost[i] += (inflation_radius_ - dist_to_obj);
       }
     }
@@ -172,7 +168,11 @@ void ObstaclesCritic::score(CriticData& data)
     raw_cost[i] = trajectory_collide ? collision_cost_ : traj_cost;
   }
 
-  data.costs += xt::pow((weight_ * raw_cost) + (repulsion_weight_ * repulsive_cost / traj_len), power_);
+  // Normalize repulsive cost by trajectory length & lowest score to not overweight importance
+  // This is a preferential cost, not collision cost, to be tuned relative to desired behaviors
+  auto&& repulsive_cost_normalized = (repulsive_cost - xt::amin(repulsive_cost, immediate)) / traj_len;
+
+  data.costs += xt::pow((weight_ * raw_cost) + (repulsion_weight_ * repulsive_cost_normalized), power_);
   data.fail_flag = all_trajectories_collide;
 }
 
@@ -183,19 +183,20 @@ void ObstaclesCritic::score(CriticData& data)
  */
 bool ObstaclesCritic::inCollision(float cost) const
 {
+  using namespace costmap_2d;
   bool is_tracking_unknown = costmap_ros_->getLayeredCostmap()->isTrackingUnknown();
+
+  cost = cost < -1 ? NO_INFORMATION : cost == -1 ? LETHAL_OBSTACLE : static_cast<unsigned char>(cost);
 
   switch (static_cast<unsigned char>(cost))
   {
-    using namespace costmap_2d;  // NOLINT
     case (LETHAL_OBSTACLE):
       return true;
     case (INSCRIBED_INFLATED_OBSTACLE):
-      return consider_footprint_ ? false : true;
+      return !consider_footprint_;
     case (NO_INFORMATION):
-      return is_tracking_unknown ? false : true;
+      return !is_tracking_unknown;
   }
-
   return false;
 }
 
@@ -203,22 +204,20 @@ CollisionCost ObstaclesCritic::costAtPose(float x, float y, float theta)
 {
   CollisionCost collision_cost;
   float& cost = collision_cost.cost;
-  collision_cost.using_footprint = false;
-  unsigned int x_i, y_i;
+  collision_cost.using_footprint = consider_footprint_;
 
+  unsigned int x_i, y_i;
   if (!costmap_ros_->getCostmap()->worldToMap(x, y, x_i, y_i))
   {
     cost = costmap_2d::NO_INFORMATION;
     return collision_cost;
   }
-  cost = world_model_->pointCost(x_i, y_i);
 
-  if (consider_footprint_ && (cost >= possibly_inscribed_cost_ || possibly_inscribed_cost_ < 1.0f))
+  cost = world_model_->pointCost(x_i, y_i);
+  if (consider_footprint_ && (cost >= possibly_inscribed_cost_ || possibly_inscribed_cost_ < 0.0))
   {
     cost = static_cast<float>(world_model_->footprintCost(x, y, theta, costmap_ros_->getRobotFootprint()));
-    collision_cost.using_footprint = true;
   }
-
   return collision_cost;
 }
 

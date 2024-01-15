@@ -218,6 +218,16 @@ protected:
    */
   bool fallback(bool fail, uint32_t& error);
 
+  /**
+   * @brief Scale the standard deviation of the noise based on the robot's speed
+   * If the robot is moving slowly, the noise can be increased to allow for more exploration
+   * If scaling_factor <= 0, no scaling is performed
+   * It changes settings member variable
+   * @param robot_speed Speed of the robot at given time
+   * @param scaling_factor Factor to scale the standard deviation by
+   */
+  void scaleStdDeviation(const geometry_msgs::Twist& robot_speed, double scaling_factor);
+
 protected:
   ros::NodeHandle parent_nh_;
 
@@ -242,6 +252,15 @@ protected:
   CriticData critics_data_ = {
     state_, generated_trajectories_, path_, costs_, settings_.model_dt, false, nullptr, std::nullopt, std::nullopt
   };  /// Caution, keep references
+
+private:
+  struct StdDev
+  {
+    double wz_std;
+    double max_wz_std;
+    double max_speed;
+  };
+  StdDev std_dev_;
 };
 
 }  // namespace mppi

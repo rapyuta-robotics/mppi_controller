@@ -57,36 +57,10 @@ public:
   void initialize(const ros::NodeHandle& parent_nh, mppi::models::OptimizerSettings& settings, bool is_holonomic);
 
   /**
-   * @brief Shutdown noise generator thread
-   */
-  void shutdown();
-
-  /**
-   * @brief Signal to the noise thread the controller is ready to generate a new
-   * noised control for the next iteration
-   */
-  void generateNextNoises();
-
-  /**
    * @brief set noised control_sequence to state controls
    * @return noises vx, vy, wz
    */
   void setNoisedControls(models::State& state, const models::ControlSequence& control_sequence);
-
-  /**
-   * @brief Reset noise generator with settings and model types
-   * @param settings Settings of controller
-   * @param is_holonomic If base is holonomic
-   */
-  void reset(const mppi::models::OptimizerSettings& settings, bool is_holonomic);
-
-  void setParams(const mppi_controller::MPPIControllerConfig& config);
-
-protected:
-  /**
-   * @brief Thread to execute noise generation process
-   */
-  void noiseThread();
 
   /**
    * @brief Generate random controls by gaussian noise with mean in
@@ -95,22 +69,12 @@ protected:
    * @return tensor of shape [ batch_size_, time_steps_, 2]
    * where 2 stands for v, w
    */
-  void generateNoisedControls();
+  void generateNoisedControls(const mppi::models::OptimizerSettings& settings, bool is_holonomic);
 
+protected:
   xt::xtensor<float, 2> noises_vx_;
   xt::xtensor<float, 2> noises_vy_;
   xt::xtensor<float, 2> noises_wz_;
-
-  ros::NodeHandle pnh_;
-  std::thread noise_thread_;
-  std::condition_variable noise_cond_;
-  std::mutex noise_lock_;
-
-  std::mutex param_mtx_;
-  mppi::models::OptimizerSettings settings_;
-  bool is_holonomic_;
-  std::atomic_bool active_{ false };
-  bool ready_{ false }, regenerate_noises_{ false };
 };
 
 }  // namespace mppi

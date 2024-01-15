@@ -48,7 +48,6 @@ void Optimizer::initialize(const ros::NodeHandle& parent_nh, costmap_2d::Costmap
 
 void Optimizer::shutdown()
 {
-  noise_generator_.shutdown();
 }
 
 void Optimizer::setParams(const mppi_controller::MPPIControllerConfig& config)
@@ -72,6 +71,8 @@ void Optimizer::setParams(const mppi_controller::MPPIControllerConfig& config)
     s.sampling_std.wz = config.wz_std;
     s.constraints = s.base_constraints;
 
+    std_dev_ = { s.sampling_std.wz, config.__getMax__().wz_std, std::hypot(config.vx_max, config.vy_max) };
+
     ROS_DEBUG_NAMED("Optimizer",
                     "Updating setting params: model_dt: %f, time_steps: %d, batch_size: %d, "
                     "iteration_count: %d, temperature: %f, gamma: %f, retry_attempt_limit: %d, "
@@ -85,7 +86,6 @@ void Optimizer::setParams(const mppi_controller::MPPIControllerConfig& config)
   setMotionModel(config.motion_model);
   setOffset(config.controller_frequency);
   reset();
-  noise_generator_.setParams(config);
 }
 
 void Optimizer::setOffset(double controller_frequency)
@@ -130,7 +130,6 @@ void Optimizer::reset()
   costs_ = xt::zeros<float>({ settings_copy.batch_size });
   generated_trajectories_.reset(settings_copy.batch_size, settings_copy.time_steps);
 
-  noise_generator_.reset(settings_copy, isHolonomic());
   critic_manager_.updateConstraints(settings_copy.constraints);
   ROS_INFO("Optimizer reset");
 }
@@ -228,6 +227,7 @@ void Optimizer::prepare(const geometry_msgs::PoseStamped& robot_pose, const geom
   critics_data_.motion_model = motion_model_;
   critics_data_.furthest_reached_path_point.reset();
   critics_data_.path_pts_valid.reset();
+  scaleStdDeviation(robot_speed, 1.0);
 }
 
 void Optimizer::shiftControlSequence()
@@ -247,10 +247,32 @@ void Optimizer::shiftControlSequence()
   }
 }
 
+void Optimizer::scaleStdDeviation(const geometry_msgs::Twist& robot_speed, double scaling_factor)
+{
+  scaling_factor = std::clamp(scaling_factor, 0.0, 1.0);
+  if (scaling_factor == 0.0)
+  {
+    return;
+  }
+
+  double max_wz_std = std::clamp(scaling_factor * std_dev_.max_wz_std, std_dev_.wz_std, std_dev_.max_wz_std);
+  const double speed = std::hypot(robot_speed.linear.x, robot_speed.linear.y);
+
+  /*
+  // logistic function
+  const double wz_std = max_wz_std + (std_dev_.wz_std - max_wz_std) / (1 + exp(2 * -(speed - std_dev_.max_speed / 2)));
+  */
+
+  const double wz_std = speed < 0.1 ? max_wz_std : std_dev_.wz_std;
+
+  ROS_DEBUG_NAMED("Optimizer", "Scaling std deviation: wz_std: %f", wz_std);
+  // settings_.sampling_std.wz = wz_std;
+  noise_generator_.generateNoisedControls(settings_, isHolonomic());
+}
+
 void Optimizer::generateNoisedTrajectories()
 {
   noise_generator_.setNoisedControls(state_, control_sequence_);
-  noise_generator_.generateNextNoises();
   updateStateVelocities(state_);
   integrateStateVelocities(generated_trajectories_, state_);
 }

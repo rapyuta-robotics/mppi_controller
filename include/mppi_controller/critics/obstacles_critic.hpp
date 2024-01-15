@@ -84,6 +84,7 @@ protected:
 
 private:
   void reconfigureCB(mppi_controller::ObstacleCriticConfig& config, uint32_t level);
+  void getInflationLayerName();
 
 protected:
   std::unique_ptr<base_local_planner::CostmapModel> world_model_;

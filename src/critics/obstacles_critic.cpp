@@ -21,6 +21,7 @@ namespace mppi::critics
 void ObstaclesCritic::initialize()
 {
   world_model_ = std::make_unique<base_local_planner::CostmapModel>(*costmap_ros_->getCostmap());
+  getInflationLayerName();
   possibly_inscribed_cost_ = findCircumscribedCost(costmap_ros_);
   pnh_.param("inflation_layer_name", inflation_layer_name_);
 
@@ -34,6 +35,32 @@ void ObstaclesCritic::initialize()
   }
 }
 
+void ObstaclesCritic::getInflationLayerName()
+{
+  // retrieving the name of the costmap inflation layer
+  ros::NodeHandle mbf_nh(ros::names::parentNamespace(parent_nh_.getNamespace()));
+  ros::NodeHandle local_costmap_nh(mbf_nh, "local_costmap");
+  XmlRpc::XmlRpcValue plugin_list;
+  if (!local_costmap_nh.getParam("plugins", plugin_list))
+  {
+    ROS_WARN_NAMED(name_, "Failed to retrieve parameter from namespace %s",
+                   local_costmap_nh.resolveName("plugins").c_str());
+    return;
+  }
+
+  // Iterate through the list to find the InflationLayer
+  for (int i = 0; i < plugin_list.size(); ++i)
+  {
+    std::string type = plugin_list[i]["type"];
+    if (type == "costmap_2d::InflationLayer")
+    {
+      inflation_layer_name_ = "local_costmap/" + static_cast<std::string>(plugin_list[i]["name"]);
+      break;
+    }
+  }
+  ROS_WARN_COND_NAMED(inflation_layer_name_.empty(), name_, "Inflation layer not found in plugins");
+}
+
 float ObstaclesCritic::findCircumscribedCost(costmap_2d::Costmap2DROS* costmap)
 {
   double result = -1.0;
@@ -42,6 +69,14 @@ float ObstaclesCritic::findCircumscribedCost(costmap_2d::Costmap2DROS* costmap)
   if (static_cast<float>(circum_radius) == circumscribed_radius_)
   {
     // early return if footprint size is unchanged
+    return circumscribed_cost_;
+  }
+
+  if (inflation_layer_name_.empty())
+  {
+    ROS_WARN_NAMED(name_, "Inflation layer not found in plugins");
+    circumscribed_radius_ = static_cast<float>(circum_radius);
+    circumscribed_cost_ = static_cast<float>(result);
     return circumscribed_cost_;
   }
 

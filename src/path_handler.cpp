@@ -23,12 +23,10 @@
 namespace mppi
 {
 
-void PathHandler::initialize(const ros::NodeHandle& parent_nh, const std::string& name,
-                             costmap_2d::Costmap2DROS* costmap, tf2_ros::Buffer* buffer)
+void PathHandler::initialize(const ros::NodeHandle& parent_nh, costmap_2d::Costmap2DROS* costmap,
+                             tf2_ros::Buffer* buffer)
 {
   parent_nh_ = parent_nh;
-  name_ = name;
-  pnh_ = ros::NodeHandle(parent_nh_, name_);
   costmap_ros_ = costmap;
   tf_buffer_ = buffer;
 }

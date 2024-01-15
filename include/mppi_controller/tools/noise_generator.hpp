@@ -30,7 +30,7 @@
 
 #include <ros/ros.h>
 #include <dynamic_reconfigure/server.h>
-#include "mppi_controller/NoiseGeneratorConfig.h"
+#include "mppi_controller/MPPIControllerConfig.h"
 
 namespace mppi
 {
@@ -54,8 +54,7 @@ public:
    * @param name Namespace for configs
    * @param param_handler Get parameters util
    */
-  void initialize(const ros::NodeHandle& parent_nh, mppi::models::OptimizerSettings& settings, bool is_holonomic,
-                  const std::string& name);
+  void initialize(const ros::NodeHandle& parent_nh, mppi::models::OptimizerSettings& settings, bool is_holonomic);
 
   /**
    * @brief Shutdown noise generator thread
@@ -81,6 +80,8 @@ public:
    */
   void reset(const mppi::models::OptimizerSettings& settings, bool is_holonomic);
 
+  void setParams(const mppi_controller::MPPIControllerConfig& config);
+
 protected:
   /**
    * @brief Thread to execute noise generation process
@@ -96,22 +97,20 @@ protected:
    */
   void generateNoisedControls();
 
-  void reconfigureCB(mppi_controller::NoiseGeneratorConfig& config, uint32_t level);
-
   xt::xtensor<float, 2> noises_vx_;
   xt::xtensor<float, 2> noises_vy_;
   xt::xtensor<float, 2> noises_wz_;
 
-  std::mutex param_mtx_;
-  mppi::models::OptimizerSettings settings_;
   ros::NodeHandle pnh_;
-  bool is_holonomic_;
-
   std::thread noise_thread_;
   std::condition_variable noise_cond_;
   std::mutex noise_lock_;
-  std::unique_ptr<dynamic_reconfigure::Server<mppi_controller::NoiseGeneratorConfig>> dsrv_;
-  bool active_{ false }, ready_{ false }, regenerate_noises_{ false };
+
+  std::mutex param_mtx_;
+  mppi::models::OptimizerSettings settings_;
+  bool is_holonomic_;
+  std::atomic_bool active_{ false };
+  bool ready_{ false }, regenerate_noises_{ false };
 };
 
 }  // namespace mppi

@@ -24,15 +24,11 @@ namespace mppi
 {
 
 void NoiseGenerator::initialize(const ros::NodeHandle& parent_nh, mppi::models::OptimizerSettings& settings,
-                                bool is_holonomic, const std::string& name)
+                                bool is_holonomic)
 {
   settings_ = settings;
   is_holonomic_ = is_holonomic;
   active_ = false;
-
-  ros::NodeHandle noise_pnh = ros::NodeHandle(parent_nh, name + "/noise_generator");
-  dsrv_ = std::make_unique<dynamic_reconfigure::Server<mppi_controller::NoiseGeneratorConfig>>(noise_pnh);
-  dsrv_->setCallback(boost::bind(&NoiseGenerator::reconfigureCB, this, _1, _2));
 }
 
 void NoiseGenerator::shutdown()
@@ -69,12 +65,10 @@ void NoiseGenerator::setNoisedControls(
 
 void NoiseGenerator::reset(const mppi::models::OptimizerSettings& settings, bool is_holonomic)
 {
-  bool regenerate_noises;
   {
     std::unique_lock<std::mutex> guard(param_mtx_);
     settings_ = settings;
     is_holonomic_ = is_holonomic;
-    regenerate_noises = regenerate_noises_;
   }
 
   // Recompute the noises on reset, initialization, and fallback
@@ -84,15 +78,6 @@ void NoiseGenerator::reset(const mppi::models::OptimizerSettings& settings, bool
     xt::noalias(noises_vy_) = xt::zeros<float>({settings_.batch_size, settings_.time_steps});
     xt::noalias(noises_wz_) = xt::zeros<float>({settings_.batch_size, settings_.time_steps});
     ready_ = true;
-  }
-
-  if (regenerate_noises)
-  {
-    noise_cond_.notify_all();
-  }
-  else
-  {
-    generateNoisedControls();
   }
 }
 
@@ -127,12 +112,12 @@ void NoiseGenerator::generateNoisedControls()
   }
 }
 
-void NoiseGenerator::reconfigureCB(mppi_controller::NoiseGeneratorConfig& config, uint32_t level)
+void NoiseGenerator::setParams(const mppi_controller::MPPIControllerConfig& config)
 {
-  regenerate_noises_ = config.regenerate_noises;
-  if (regenerate_noises_)
+  if (!regenerate_noises_ && config.regenerate_noises)
   {
     active_ = true;
+    regenerate_noises_ = config.regenerate_noises;
     noise_thread_ = std::thread(std::bind(&NoiseGenerator::noiseThread, this));
   }
   else

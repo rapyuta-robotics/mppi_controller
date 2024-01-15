@@ -24,6 +24,7 @@
 
 #include "mppi_controller/models/trajectories.hpp"
 #include "mppi_controller/tools/utils.hpp"
+#include "mppi_controller/MPPIControllerConfig.h"
 
 namespace mppi
 {
@@ -43,10 +44,9 @@ public:
   /**
    * @brief Configure trajectory visualizer
    * @param parent_nh Parent node handle
-   * @param name Name of plugin
    * @param frame_id Frame to publish trajectories in
    */
-  void on_configure(const ros::NodeHandle& parent_nh, const std::string& name, const std::string& frame_id);
+  void on_configure(ros::NodeHandle& parent_nh, const std::string& frame_id);
 
   /**
    * @brief Add an optimal trajectory to visualize
@@ -71,6 +71,8 @@ public:
    */
   void reset();
 
+  void setParams(const mppi_controller::MPPIControllerConfig& config);
+
 protected:
   std::string frame_id_;
   ros::Publisher trajectory_publisher_;
@@ -79,8 +81,8 @@ protected:
   visualization_msgs::MarkerArray points_;
   int marker_id_ = 0;
 
-  int trajectory_step_{ 0 };
-  int time_step_{ 0 };
+  std::atomic<int> trajectory_step_{ 0 };
+  std::atomic<int> time_step_{ 0 };
 };
 
 }  // namespace mppi

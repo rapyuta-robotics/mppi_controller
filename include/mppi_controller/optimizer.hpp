@@ -221,27 +221,29 @@ protected:
 protected:
   ros::NodeHandle parent_nh_;
 
-  mutable std::mutex settings_mtx_;
   mutable std::mutex mmodel_mtx_;
+  mutable std::mutex c_manager_mtx_;
+  mutable std::mutex n_generator_mtx_;
+  mutable std::mutex settings_mtx_;
   mutable std::mutex state_mtx_;
   mutable std::mutex cs_mtx_;
+  mutable std::mutex ch_mtx_;
   mutable std::mutex gt_mtx_;
   mutable std::mutex costs_mtx_;
+  mutable std::mutex critics_mtx_;
 
   costmap_2d::Costmap2DROS* costmap_ros_;
 
+  models::Path path_;
   std::shared_ptr<MotionModel> motion_model_;
-
   CriticManager critic_manager_;
   NoiseGenerator noise_generator_;
 
   models::OptimizerSettings settings_;
-
   models::State state_;
   models::ControlSequence control_sequence_;
   std::array<mppi::models::Control, 4> control_history_;
   models::Trajectories generated_trajectories_;
-  models::Path path_;
   xt::xtensor<float, 1> costs_;
 
   CriticData critics_data_ = {

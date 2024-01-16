@@ -39,15 +39,22 @@ void Optimizer::initialize(const ros::NodeHandle& parent_nh, costmap_2d::Costmap
 
   costmap_ros_ = costmap_ros;
 
-  critic_manager_.on_configure(parent_nh_, costmap_ros_);
+  {
+    std::lock_guard<std::mutex> lock(c_manager_mtx_);
+    critic_manager_.on_configure(parent_nh_, costmap_ros_);
+  }
 
   models::OptimizerSettings default_settings;
-  noise_generator_.initialize(parent_nh_, default_settings, false);
+  {
+    std::lock_guard<std::mutex> lock(n_generator_mtx_);
+    noise_generator_.initialize(parent_nh_, default_settings, false);
+  }
   setParams(config);
 }
 
 void Optimizer::shutdown()
 {
+  std::lock_guard<std::mutex> lock(n_generator_mtx_);
   noise_generator_.shutdown();
 }
 
@@ -85,7 +92,11 @@ void Optimizer::setParams(const mppi_controller::MPPIControllerConfig& config)
   setMotionModel(config.motion_model);
   setOffset(config.controller_frequency);
   reset();
-  noise_generator_.setParams(config);
+
+  {
+    std::lock_guard<std::mutex> lock(n_generator_mtx_);
+    noise_generator_.setParams(config);
+  }
 }
 
 void Optimizer::setOffset(double controller_frequency)
@@ -130,10 +141,13 @@ void Optimizer::reset()
     control_sequence_.reset(settings_copy.time_steps);
   }
 
-  control_history_[0] = { 0.0, 0.0, 0.0 };
-  control_history_[1] = { 0.0, 0.0, 0.0 };
-  control_history_[2] = { 0.0, 0.0, 0.0 };
-  control_history_[3] = { 0.0, 0.0, 0.0 };
+  {
+    std::lock_guard<std::mutex> lock(ch_mtx_);
+    control_history_[0] = { 0.0, 0.0, 0.0 };
+    control_history_[1] = { 0.0, 0.0, 0.0 };
+    control_history_[2] = { 0.0, 0.0, 0.0 };
+    control_history_[3] = { 0.0, 0.0, 0.0 };
+  }
 
   {
     std::lock_guard<std::mutex> lock(costs_mtx_);
@@ -145,8 +159,15 @@ void Optimizer::reset()
     generated_trajectories_.reset(settings_copy.batch_size, settings_copy.time_steps);
   }
 
-  noise_generator_.reset(settings_copy, isHolonomic());
-  critic_manager_.updateConstraints(settings_copy.constraints);
+  {
+    std::lock_guard<std::mutex> lock(n_generator_mtx_);
+    noise_generator_.reset(settings_copy, isHolonomic());
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(c_manager_mtx_);
+    critic_manager_.updateConstraints(settings_copy.constraints);
+  }
   ROS_INFO("Optimizer reset");
 }
 
@@ -159,7 +180,13 @@ uint32_t Optimizer::evalControl(const geometry_msgs::PoseStamped& robot_pose, co
   {
     optimize();
 
-    if (uint32_t error = mbf_msgs::ExePathResult::SUCCESS; !fallback(critics_data_.fail_flag, error))
+    bool fail_flag;
+    {
+      std::lock_guard<std::mutex> lock(critics_mtx_);
+      fail_flag = critics_data_.fail_flag;
+    }
+
+    if (uint32_t error = mbf_msgs::ExePathResult::SUCCESS; !fallback(fail_flag, error))
     {
       if (error != mbf_msgs::ExePathResult::SUCCESS)
       {
@@ -177,6 +204,7 @@ uint32_t Optimizer::evalControl(const geometry_msgs::PoseStamped& robot_pose, co
 
   {
     std::lock_guard<std::mutex> lock(cs_mtx_);
+    std::lock_guard<std::mutex> loc(ch_mtx_);
     utils::savitskyGolayFilter(control_sequence_, control_history_, settings);
   }
 
@@ -201,7 +229,11 @@ void Optimizer::optimize()
   for (size_t i = 0; i < iteration_count; ++i)
   {
     generateNoisedTrajectories();
-    critic_manager_.evalTrajectoriesScores(critics_data_);
+    {
+      std::lock_guard<std::mutex> lock(critics_mtx_);
+      std::lock_guard<std::mutex> loc(c_manager_mtx_);
+      critic_manager_.evalTrajectoriesScores(critics_data_);
+    }
     updateControlSequence();
   }
 }
@@ -251,15 +283,22 @@ void Optimizer::prepare(const geometry_msgs::PoseStamped& robot_pose, const geom
     costs_.fill(0);
   }
 
-  critics_data_.fail_flag = false;
+  {
+    std::lock_guard<std::mutex> lock(critics_mtx_);
+    critics_data_.fail_flag = false;
+  }
 
   {
     std::lock_guard<std::mutex> lock(mmodel_mtx_);
+    std::lock_guard<std::mutex> loc(critics_mtx_);
     critics_data_.motion_model = motion_model_;
   }
 
-  critics_data_.furthest_reached_path_point.reset();
-  critics_data_.path_pts_valid.reset();
+  {
+    std::lock_guard<std::mutex> lock(critics_mtx_);
+    critics_data_.furthest_reached_path_point.reset();
+    critics_data_.path_pts_valid.reset();
+  }
 }
 
 void Optimizer::shiftControlSequence()
@@ -286,10 +325,14 @@ void Optimizer::generateNoisedTrajectories()
   {
     std::lock_guard<std::mutex> lock_st(state_mtx_);
     std::lock_guard<std::mutex> lock_cs(cs_mtx_);
+    std::lock_guard<std::mutex> lock(n_generator_mtx_);
     noise_generator_.setNoisedControls(state_, control_sequence_);
   }
 
-  noise_generator_.generateNextNoises();
+  {
+    std::lock_guard<std::mutex> lock(n_generator_mtx_);
+    noise_generator_.generateNextNoises();
+  }
 
   {
     std::lock_guard<std::mutex> lock_st(state_mtx_);

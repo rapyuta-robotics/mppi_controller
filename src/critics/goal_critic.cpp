@@ -26,8 +26,7 @@ void GoalCritic::initialize()
 
 void GoalCritic::score(CriticData & data)
 {
-  if (!enabled_ || !utils::withinPositionGoalTolerance(
-      threshold_to_consider_, data.state.pose.pose, data.path))
+  if (!enabled_ || !utils::withinPositionGoalTolerance(threshold_to_consider_, data.state->pose.pose, data.path))
   {
     return;
   }
@@ -37,14 +36,14 @@ void GoalCritic::score(CriticData & data)
   const auto goal_x = data.path.x(goal_idx);
   const auto goal_y = data.path.y(goal_idx);
 
-  const auto traj_x = xt::view(data.trajectories.x, xt::all(), xt::all());
-  const auto traj_y = xt::view(data.trajectories.y, xt::all(), xt::all());
+  const auto traj_x = xt::view(data.trajectories->x, xt::all(), xt::all());
+  const auto traj_y = xt::view(data.trajectories->y, xt::all(), xt::all());
 
   auto dists = xt::sqrt(
     xt::pow(traj_x - goal_x, 2) +
     xt::pow(traj_y - goal_y, 2));
 
-  data.costs += xt::pow(xt::mean(dists, {1}, immediate) * weight_, power_);
+  *(data.costs) += xt::pow(xt::mean(dists, { 1 }, immediate) * weight_, power_);
 }
 
 }  // namespace mppi::critics

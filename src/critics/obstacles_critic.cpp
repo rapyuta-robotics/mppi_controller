@@ -111,19 +111,19 @@ void ObstaclesCritic::score(CriticData& data)
 
   // If near the goal, don't apply the preferential term since the goal is near obstacles
   bool near_goal = false;
-  if (utils::withinPositionGoalTolerance(near_goal_distance_, data.state.pose.pose, data.path))
+  if (utils::withinPositionGoalTolerance(near_goal_distance_, data.state->pose.pose, data.path))
   {
     near_goal = true;
   }
 
-  auto&& raw_cost = xt::xtensor<float, 1>::from_shape({ data.costs.shape(0) });
+  auto&& raw_cost = xt::xtensor<float, 1>::from_shape({ data.costs->shape(0) });
   raw_cost.fill(0.0f);
-  auto&& repulsive_cost = xt::xtensor<float, 1>::from_shape({ data.costs.shape(0) });
+  auto&& repulsive_cost = xt::xtensor<float, 1>::from_shape({ data.costs->shape(0) });
   repulsive_cost.fill(0.0f);
 
-  const size_t traj_len = data.trajectories.x.shape(1);
+  const size_t traj_len = data.trajectories->x.shape(1);
   bool all_trajectories_collide = true;
-  for (size_t i = 0; i < data.trajectories.x.shape(0); ++i)
+  for (size_t i = 0; i < data.trajectories->x.shape(0); ++i)
   {
     bool trajectory_collide = false;
     float traj_cost = 0.0f;
@@ -132,7 +132,7 @@ void ObstaclesCritic::score(CriticData& data)
 
     for (size_t j = 0; j < traj_len; j++)
     {
-      pose_cost = costAtPose(traj.x(i, j), traj.y(i, j), traj.yaws(i, j));
+      pose_cost = costAtPose(traj->x(i, j), traj->y(i, j), traj->yaws(i, j));
 
       if (inCollision(pose_cost.cost))
       {
@@ -172,7 +172,7 @@ void ObstaclesCritic::score(CriticData& data)
   // This is a preferential cost, not collision cost, to be tuned relative to desired behaviors
   auto&& repulsive_cost_normalized = (repulsive_cost - xt::amin(repulsive_cost, immediate)) / traj_len;
 
-  data.costs += xt::pow((weight_ * raw_cost) + (repulsion_weight_ * repulsive_cost_normalized), power_);
+  *(data.costs) += xt::pow((weight_ * raw_cost) + (repulsion_weight_ * repulsive_cost_normalized), power_);
   data.fail_flag = all_trajectories_collide;
 }
 

@@ -27,7 +27,7 @@ void PathFollowCritic::initialize()
 void PathFollowCritic::score(CriticData & data)
 {
   if (!enabled_ || data.path.x.shape(0) < 2 ||
-    utils::withinPositionGoalTolerance(threshold_to_consider_, data.state.pose.pose, data.path))
+      utils::withinPositionGoalTolerance(threshold_to_consider_, data.state->pose.pose, data.path))
   {
     return;
   }
@@ -52,14 +52,14 @@ void PathFollowCritic::score(CriticData & data)
   const auto path_x = data.path.x(offseted_idx);
   const auto path_y = data.path.y(offseted_idx);
 
-  const auto last_x = xt::view(data.trajectories.x, xt::all(), -1);
-  const auto last_y = xt::view(data.trajectories.y, xt::all(), -1);
+  const auto last_x = xt::view(data.trajectories->x, xt::all(), -1);
+  const auto last_y = xt::view(data.trajectories->y, xt::all(), -1);
 
   auto dists = xt::sqrt(
     xt::pow(last_x - path_x, 2) +
     xt::pow(last_y - path_y, 2));
 
-  data.costs += xt::pow(weight_ * std::move(dists), power_);
+  *(data.costs) += xt::pow(weight_ * std::move(dists), power_);
 }
 
 }  // namespace mppi::critics

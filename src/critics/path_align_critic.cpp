@@ -30,8 +30,7 @@ void PathAlignCritic::initialize()
 void PathAlignCritic::score(CriticData & data)
 {
   // Don't apply close to goal, let the goal critics take over
-  if (!enabled_ ||
-    utils::withinPositionGoalTolerance(threshold_to_consider_, data.state.pose.pose, data.path))
+  if (!enabled_ || utils::withinPositionGoalTolerance(threshold_to_consider_, data.state->pose.pose, data.path))
   {
     return;
   }
@@ -39,7 +38,8 @@ void PathAlignCritic::score(CriticData & data)
   // Don't apply when first getting bearing w.r.t. the path
   utils::setPathFurthestPointIfNotSet(data);
   const size_t path_segments_count = *data.furthest_reached_path_point;  // up to furthest only
-  if (path_segments_count < offset_from_furthest_) {
+  if (path_segments_count < offset_from_furthest_)
+  {
     return;
   }
 
@@ -48,20 +48,25 @@ void PathAlignCritic::score(CriticData & data)
   const size_t closest_initial_path_point = utils::findPathTrajectoryInitialPoint(data);
   unsigned int invalid_ctr = 0;
   const float range = *data.furthest_reached_path_point - closest_initial_path_point;
-  for (size_t i = closest_initial_path_point; i < *data.furthest_reached_path_point; i++) {
-    if (!(*data.path_pts_valid)[i]) {invalid_ctr++;}
-    if (static_cast<float>(invalid_ctr) / range > max_path_occupancy_ratio_ && invalid_ctr > 2) {
+  for (size_t i = closest_initial_path_point; i < *data.furthest_reached_path_point; i++)
+  {
+    if (!(*data.path_pts_valid)[i])
+    {
+      invalid_ctr++;
+    }
+    if (static_cast<float>(invalid_ctr) / range > max_path_occupancy_ratio_ && invalid_ctr > 2)
+    {
       return;
     }
   }
 
-  const auto P_x = xt::view(data.path.x, xt::range(_, -1));  // path points
-  const auto P_y = xt::view(data.path.y, xt::range(_, -1));  // path points
+  const auto P_x = xt::view(data.path.x, xt::range(_, -1));       // path points
+  const auto P_y = xt::view(data.path.y, xt::range(_, -1));       // path points
   const auto P_yaw = xt::view(data.path.yaws, xt::range(_, -1));  // path points
 
-  const size_t batch_size = data.trajectories.x.shape(0);
-  const size_t time_steps = data.trajectories.x.shape(1);
-  auto && cost = xt::xtensor<float, 1>::from_shape({data.costs.shape(0)});
+  const size_t batch_size = data.trajectories->x.shape(0);
+  const size_t time_steps = data.trajectories->x.shape(1);
+  auto&& cost = xt::xtensor<float, 1>::from_shape({ data.costs->shape(0) });
 
   // Find integrated distance in the path
   std::vector<float> path_integrated_distances(path_segments_count, 0.0f);
@@ -82,8 +87,8 @@ void PathAlignCritic::score(CriticData & data)
     traj_integrated_distance = 0.0f;
     summed_path_dist = 0.0f;
     num_samples = 0.0f;
-    const auto T_x = xt::view(data.trajectories.x, t, xt::all());
-    const auto T_y = xt::view(data.trajectories.y, t, xt::all());
+    const auto T_x = xt::view(data.trajectories->x, t, xt::all());
+    const auto T_y = xt::view(data.trajectories->y, t, xt::all());
     for (size_t p = trajectory_point_step_; p < time_steps; p += trajectory_point_step_) {
       Tx = T_x(p);
       Ty = T_y(p);
@@ -100,7 +105,7 @@ void PathAlignCritic::score(CriticData & data)
         dy = P_y(path_pt) - Ty;
         num_samples += 1.0f;
         if (use_path_orientations_) {
-          const auto T_yaw = xt::view(data.trajectories.yaws, t, xt::all());
+          const auto T_yaw = xt::view(data.trajectories->yaws, t, xt::all());
           dyaw = angles::shortest_angular_distance(P_yaw(path_pt), T_yaw(p));
           summed_path_dist += sqrtf(dx * dx + dy * dy + dyaw * dyaw);
         } else {
@@ -115,7 +120,7 @@ void PathAlignCritic::score(CriticData & data)
     }
   }
 
-  data.costs += xt::pow(std::move(cost) * weight_, power_);
+  *(data.costs) += xt::pow(std::move(cost) * weight_, power_);
 }
 
 void PathAlignCritic::reconfigureCB(mppi_controller::PathAlignCriticConfig& config, uint32_t level)

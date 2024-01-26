@@ -49,6 +49,12 @@ namespace mppi
  */
 class Optimizer
 {
+private:
+  using StatePtr = std::shared_ptr<models::State>;
+  using TrajectoriesPtr = std::shared_ptr<models::Trajectories>;
+  using CostPtr = std::shared_ptr<xt::xtensor<float, 1>>;
+  using MotionModelPtr = std::shared_ptr<MotionModel>;
+
 public:
   /**
    * @brief Constructor for mppi::Optimizer
@@ -220,25 +226,26 @@ protected:
    */
   bool fallback(bool fail, uint32_t& error);
 
-  void updateCriticsData();
-
 protected:
   ros::NodeHandle parent_nh_;
 
   costmap_2d::Costmap2DROS* costmap_ros_;
 
   models::Path path_;
-  safe::Safe<std::shared_ptr<MotionModel>> motion_model_;
+  safe::Safe<MotionModelPtr> motion_model_{ {}, std::make_shared<MotionModel>() };
   safe::Safe<CriticManager> critic_manager_;
   safe::Safe<NoiseGenerator> noise_generator_;
 
   safe::Safe<models::OptimizerSettings> settings_;
-  safe::Safe<models::State> state_;
+  safe::Safe<StatePtr> state_{ {}, std::make_shared<models::State>() };
+  safe::Safe<TrajectoriesPtr> generated_trajectories_{ {}, std::make_shared<models::Trajectories>() };
   safe::Safe<models::ControlSequence> control_sequence_;
   safe::Safe<std::array<mppi::models::Control, 4>> control_history_;
-  safe::Safe<models::Trajectories> generated_trajectories_;
-  safe::Safe<xt::xtensor<float, 1>> costs_;
-  safe::Safe<CriticData> critics_data_;
+  safe::Safe<CostPtr> costs_;
+  safe::Safe<CriticData> critics_data_{ {},
+                                        { *state_.readAccess(), *generated_trajectories_.readAccess(), path_,
+                                          *costs_.writeAccess(), settings_.readAccess()->model_dt, false,
+                                          *motion_model_.writeAccess(), std::nullopt, std::nullopt } };
 };
 
 }  // namespace mppi

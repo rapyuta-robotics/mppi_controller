@@ -24,13 +24,13 @@ void TwirlingCritic::initialize()
 void TwirlingCritic::score(CriticData & data)
 {
   using xt::evaluation_strategy::immediate;
-  if (!enabled_ || utils::withinPositionGoalTolerance(threshold_to_consider_, data.state.pose.pose, data.path))
+  if (!enabled_ || utils::withinPositionGoalTolerance(threshold_to_consider_, data.state->pose.pose, data.path))
   {
     return;
   }
 
-  const auto wz = xt::abs(data.state.wz);
-  data.costs += xt::pow(xt::mean(wz, {1}, immediate) * weight_, power_);
+  const auto wz = xt::abs(data.state->wz);
+  *(data.costs) += xt::pow(xt::mean(wz, { 1 }, immediate) * weight_, power_);
 }
 
 }  // namespace mppi::critics

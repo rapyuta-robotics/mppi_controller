@@ -116,7 +116,7 @@ void Optimizer::reset()
   const int batch_size = (*settings_.readAccess()).batch_size;
   const int time_steps = (*settings_.readAccess()).time_steps;
   const auto constraints = (*settings_.readAccess()).constraints;
-  (*state_.writeAccess()).reset(batch_size, time_steps);
+  (*state_.writeAccess())->reset(batch_size, time_steps);
   (*control_sequence_.writeAccess()).reset(time_steps);
 
   (*control_history_.writeAccess())[0] = { 0.0, 0.0, 0.0 };
@@ -124,9 +124,9 @@ void Optimizer::reset()
   (*control_history_.writeAccess())[2] = { 0.0, 0.0, 0.0 };
   (*control_history_.writeAccess())[3] = { 0.0, 0.0, 0.0 };
 
-  *costs_.writeAccess() = xt::zeros<float>({ batch_size });
+  *(*costs_.writeAccess()) = xt::zeros<float>({ batch_size });
 
-  (*generated_trajectories_.writeAccess()).reset(batch_size, time_steps);
+  (*generated_trajectories_.writeAccess())->reset(batch_size, time_steps);
   (*noise_generator_.writeAccess()).reset(batch_size, time_steps, isHolonomic());
   (*critic_manager_.writeAccess()).updateConstraints(constraints);
   ROS_INFO("Optimizer reset");
@@ -165,20 +165,9 @@ uint32_t Optimizer::evalControl(const geometry_msgs::PoseStamped& robot_pose, co
   return mbf_msgs::ExePathResult::SUCCESS;
 }
 
-void Optimizer::updateCriticsData()
-{
-  (*critics_data_.writeAccess()).state = state_.copy();
-  (*critics_data_.writeAccess()).trajectories = generated_trajectories_.copy();
-  (*critics_data_.writeAccess()).path = path_;
-  (*critics_data_.writeAccess()).costs = costs_.copy();
-  (*critics_data_.writeAccess()).model_dt = (*settings_.readAccess()).model_dt;
-}
-
 void Optimizer::optimize()
 {
   const int iteration_count = (*settings_.readAccess()).iteration_count;
-
-  updateCriticsData();
 
   for (size_t i = 0; i < iteration_count; ++i)
   {
@@ -216,14 +205,13 @@ bool Optimizer::fallback(bool fail, uint32_t& error)
 void Optimizer::prepare(const geometry_msgs::PoseStamped& robot_pose, const geometry_msgs::Twist& robot_speed,
                         const nav_msgs::Path& plan)
 {
-  (*state_.writeAccess()).pose = robot_pose;
-  (*state_.writeAccess()).speed = robot_speed;
+  (*state_.writeAccess())->pose = robot_pose;
+  (*state_.writeAccess())->speed = robot_speed;
 
   path_ = utils::toTensor(plan);
 
-  (*costs_.writeAccess()).fill(0);
+  (*costs_.writeAccess())->fill(0);
   (*critics_data_.writeAccess()).fail_flag = false;
-  (*critics_data_.writeAccess()).motion_model = motion_model_.copy();
   (*critics_data_.writeAccess()).furthest_reached_path_point.reset();
   (*critics_data_.writeAccess()).path_pts_valid.reset();
 }
@@ -257,10 +245,10 @@ void Optimizer::shiftControlSequence()
 
 void Optimizer::generateNoisedTrajectories()
 {
-  (*noise_generator_.writeAccess()).setNoisedControls(*state_.writeAccess(), *control_sequence_.readAccess());
+  (*noise_generator_.writeAccess()).setNoisedControls(*(*state_.writeAccess()), *control_sequence_.readAccess());
   (*noise_generator_.writeAccess()).generateNextNoises();
-  updateStateVelocities(*state_.writeAccess());
-  integrateStateVelocities(*generated_trajectories_.writeAccess(), *state_.writeAccess());
+  updateStateVelocities(*(*state_.writeAccess()));
+  integrateStateVelocities(*(*generated_trajectories_.writeAccess()), *(*state_.writeAccess()));
 }
 
 bool Optimizer::isHolonomic() const
@@ -310,7 +298,7 @@ void Optimizer::propagateStateVelocitiesFromInitials(models::State& state) const
 void Optimizer::integrateStateVelocities(xt::xtensor<float, 2>& trajectory, const xt::xtensor<float, 2>& sequence) const
 {
   const double model_dt = (*settings_.readAccess()).model_dt;
-  const geometry_msgs::PoseStamped& pose = (*state_.readAccess()).pose;
+  const geometry_msgs::PoseStamped& pose = (*state_.readAccess())->pose;
 
   float initial_yaw = tf2::getYaw(pose.pose.orientation);
 
@@ -404,9 +392,9 @@ void Optimizer::updateControlSequence()
   const mppi::models::SamplingStd sampling_std = (*settings_.readAccess()).sampling_std;
   const double temperature = (*settings_.readAccess()).temperature;
   const double gamma = (*settings_.readAccess()).gamma;
-  const auto cvx = (*state_.readAccess()).cvx;
-  const auto cvy = (*state_.readAccess()).cvy;
-  const auto cwz = (*state_.readAccess()).cwz;
+  const auto cvx = (*state_.readAccess())->cvx;
+  const auto cvy = (*state_.readAccess())->cvy;
+  const auto cwz = (*state_.readAccess())->cwz;
   const auto vx = (*control_sequence_.readAccess()).vx;
   const auto vy = (*control_sequence_.readAccess()).vy;
   const auto wz = (*control_sequence_.readAccess()).wz;
@@ -429,7 +417,7 @@ void Optimizer::updateControlSequence()
         xt::sum(xt::view(vy, xt::newaxis(), xt::all()) * bounded_noises_vy, 1, immediate);
   }
 
-  auto&& costs_normalized = *costs_.readAccess() - xt::amin(*costs_.readAccess(), immediate);
+  auto&& costs_normalized = *(*costs_.readAccess()) - xt::amin(*(*costs_.readAccess()), immediate);
   auto&& exponents = xt::eval(xt::exp(-1 / temperature * costs_normalized));
   auto&& softmaxes = xt::eval(exponents / xt::sum(exponents, immediate));
   auto&& softmaxes_extened = xt::eval(xt::view(softmaxes, xt::all(), xt::newaxis()));
@@ -519,7 +507,7 @@ void Optimizer::setSpeedLimit(double speed_limit, bool percentage)
 
 models::Trajectories Optimizer::getGeneratedTrajectories()
 {
-  return generated_trajectories_.copy();
+  return *(generated_trajectories_.copy());
 }
 
 }  // namespace mppi

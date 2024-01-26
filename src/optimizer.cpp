@@ -69,7 +69,9 @@ void Optimizer::setParams(const mppi_controller::MPPIControllerConfig& config)
   (*settings_.writeAccess()).sampling_std.vx = config.vx_std;
   (*settings_.writeAccess()).sampling_std.vy = config.vy_std;
   (*settings_.writeAccess()).sampling_std.wz = config.wz_std;
-  (*settings_.writeAccess()).constraints = (*settings_.readAccess()).base_constraints;
+
+  const auto base_constraints = (*settings_.readAccess()).base_constraints;
+  (*settings_.writeAccess()).constraints = base_constraints;
 
   ROS_DEBUG_NAMED("Optimizer",
                   "Updating setting params: model_dt: %f, time_steps: %d, batch_size: %d, "
@@ -230,16 +232,26 @@ void Optimizer::shiftControlSequence()
 {
   using namespace xt::placeholders;  // NOLINT
 
-  (*control_sequence_.writeAccess()).vx = xt::roll((*control_sequence_.readAccess()).vx, -1);
-  (*control_sequence_.writeAccess()).wz = xt::roll((*control_sequence_.readAccess()).wz, -1);
+  {
+    const auto vx = xt::roll((*control_sequence_.readAccess()).vx, -1);
+    const auto wz = xt::roll((*control_sequence_.readAccess()).wz, -1);
+    (*control_sequence_.writeAccess()).vx = vx;
+    (*control_sequence_.writeAccess()).wz = wz;
+  }
 
-  xt::view((*control_sequence_.writeAccess()).vx, -1) = xt::view((*control_sequence_.readAccess()).vx, -2);
-  xt::view((*control_sequence_.writeAccess()).wz, -1) = xt::view((*control_sequence_.readAccess()).wz, -2);
+  {
+    const auto vx = xt::roll((*control_sequence_.readAccess()).vx, -2);
+    const auto wz = xt::roll((*control_sequence_.readAccess()).wz, -2);
+    xt::view((*control_sequence_.writeAccess()).vx, -1) = vx;
+    xt::view((*control_sequence_.writeAccess()).wz, -1) = wz;
+  }
 
   if (isHolonomic())
   {
-    (*control_sequence_.writeAccess()).vy = xt::roll((*control_sequence_.readAccess()).vy, -1);
-    xt::view((*control_sequence_.writeAccess()).vy, -1) = xt::view((*control_sequence_.readAccess()).vy, -2);
+    const auto vy = xt::roll((*control_sequence_.readAccess()).vy, -1);
+    const auto vy2 = xt::roll((*control_sequence_.readAccess()).vy, -2);
+    (*control_sequence_.writeAccess()).vy = vy;
+    xt::view((*control_sequence_.writeAccess()).vy, -1) = vy2;
   }
 }
 
@@ -259,15 +271,17 @@ bool Optimizer::isHolonomic() const
 void Optimizer::applyControlSequenceConstraints()
 {
   mppi::models::ControlConstraints constraints = (*settings_.readAccess()).constraints;
+  const auto vy = (*control_sequence_.readAccess()).vy;
+  const auto vx = (*control_sequence_.readAccess()).vx;
+  const auto wz = (*control_sequence_.readAccess()).wz;
+
   if (isHolonomic())
   {
-    (*control_sequence_.writeAccess()).vy =
-        xt::clip((*control_sequence_.readAccess()).vy, -constraints.vy, constraints.vy);
+    (*control_sequence_.writeAccess()).vy = xt::clip(vy, -constraints.vy, constraints.vy);
   }
-  (*control_sequence_.writeAccess()).vx =
-      xt::clip((*control_sequence_.readAccess()).vx, constraints.vx_min, constraints.vx_max);
-  (*control_sequence_.writeAccess()).wz =
-      xt::clip((*control_sequence_.readAccess()).wz, -constraints.wz, constraints.wz);
+
+  (*control_sequence_.writeAccess()).vx = xt::clip(vx, constraints.vx_min, constraints.vx_max);
+  (*control_sequence_.writeAccess()).wz = xt::clip(wz, -constraints.wz, constraints.wz);
   (*motion_model_.writeAccess())->applyConstraints(*control_sequence_.writeAccess());
 }
 
@@ -468,12 +482,17 @@ void Optimizer::setMotionModel(const int model)
 
 void Optimizer::setSpeedLimit(double speed_limit, bool percentage)
 {
+  const auto vx_max = (*settings_.readAccess()).base_constraints.vx_max;
+  const auto vx_min = (*settings_.readAccess()).base_constraints.vx_min;
+  const auto vy = (*settings_.readAccess()).base_constraints.vy;
+  const auto wz = (*settings_.readAccess()).base_constraints.wz;
+
   if (speed_limit == 0.0)
   {
-    (*settings_.writeAccess()).constraints.vx_max = (*settings_.readAccess()).base_constraints.vx_max;
-    (*settings_.writeAccess()).constraints.vx_min = (*settings_.readAccess()).base_constraints.vx_min;
-    (*settings_.writeAccess()).constraints.vy = (*settings_.readAccess()).base_constraints.vy;
-    (*settings_.writeAccess()).constraints.wz = (*settings_.readAccess()).base_constraints.wz;
+    (*settings_.writeAccess()).constraints.vx_max = vx_max;
+    (*settings_.writeAccess()).constraints.vx_min = vx_min;
+    (*settings_.writeAccess()).constraints.vy = vy;
+    (*settings_.writeAccess()).constraints.wz = wz;
   }
   else
   {
@@ -481,19 +500,19 @@ void Optimizer::setSpeedLimit(double speed_limit, bool percentage)
     {
       // Speed limit is expressed in % from maximum speed of robot
       double ratio = speed_limit / 100.0;
-      (*settings_.writeAccess()).constraints.vx_max = (*settings_.readAccess()).base_constraints.vx_max * ratio;
-      (*settings_.writeAccess()).constraints.vx_min = (*settings_.readAccess()).base_constraints.vx_min * ratio;
-      (*settings_.writeAccess()).constraints.vy = (*settings_.readAccess()).base_constraints.vy * ratio;
-      (*settings_.writeAccess()).constraints.wz = (*settings_.readAccess()).base_constraints.wz * ratio;
+      (*settings_.writeAccess()).constraints.vx_max = vx_max * ratio;
+      (*settings_.writeAccess()).constraints.vx_min = vx_min * ratio;
+      (*settings_.writeAccess()).constraints.vy = vy * ratio;
+      (*settings_.writeAccess()).constraints.wz = wz * ratio;
     }
     else
     {
       // Speed limit is expressed in absolute value
-      double ratio = speed_limit / (*settings_.readAccess()).base_constraints.vx_max;
-      (*settings_.writeAccess()).constraints.vx_max = (*settings_.readAccess()).base_constraints.vx_max * ratio;
-      (*settings_.writeAccess()).constraints.vx_min = (*settings_.readAccess()).base_constraints.vx_min * ratio;
-      (*settings_.writeAccess()).constraints.vy = (*settings_.readAccess()).base_constraints.vy * ratio;
-      (*settings_.writeAccess()).constraints.wz = (*settings_.readAccess()).base_constraints.wz * ratio;
+      double ratio = speed_limit / vx_max;
+      (*settings_.writeAccess()).constraints.vx_max = vx_max * ratio;
+      (*settings_.writeAccess()).constraints.vx_min = vx_min * ratio;
+      (*settings_.writeAccess()).constraints.vy = vy * ratio;
+      (*settings_.writeAccess()).constraints.wz = wz * ratio;
     }
   }
 }

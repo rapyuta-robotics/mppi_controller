@@ -75,10 +75,11 @@ public:
 
   /**
    * @brief Reset noise generator with settings and model types
-   * @param settings Settings of controller
+   * @param batch_size Batch size of controller
+   * @param time_steps Time steps of controller
    * @param is_holonomic If base is holonomic
    */
-  void reset(const mppi::models::OptimizerSettings& settings, bool is_holonomic);
+  void reset(int batch_size, int time_steps, bool is_holonomic);
 
   void setParams(const mppi_controller::MPPIControllerConfig& config);
 

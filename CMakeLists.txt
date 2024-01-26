@@ -12,6 +12,9 @@ set(XTENSOR_USE_XSIMD 0)
 add_subdirectory(external/xsimd)
 add_subdirectory(external/xtl)
 add_subdirectory(external/xtensor)
+add_subdirectory(external/safe)
+
+set(EXTERNAL_LIBS xtl xtensor safe)
 
 find_package(catkin REQUIRED)
 
@@ -44,6 +47,7 @@ include_directories(
   external/xsimd/include
   external/xtensor/include
   external/xtl/include
+  external/safe/include
 )
 
 # If building one the same hardware to be deployed on, try `-march=native`!
@@ -96,7 +100,7 @@ set(libraries mppi_critics mppi_controller)
 foreach(lib IN LISTS libraries)
   target_compile_options(${lib} PUBLIC -fconcepts)
   target_link_libraries(${lib} ${catkin_LIBRARIES})
-  add_dependencies(${lib} ${PROJECT_NAME}_gencfg ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} xtensor xtl)
+  add_dependencies(${lib} ${PROJECT_NAME}_gencfg ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} ${EXTERNAL_LIBS})
 endforeach()
 
 install(TARGETS mppi_critics mppi_controller

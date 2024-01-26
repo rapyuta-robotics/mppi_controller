@@ -19,8 +19,10 @@
 #include <memory>
 #include <optional>
 
+// external
 #include <xtensor/xtensor.hpp>
 #include <xtensor/xview.hpp>
+#include <safe/safe.h>
 
 #include <costmap_2d/costmap_2d_ros.h>
 #include <geometry_msgs/Twist.h>
@@ -90,7 +92,7 @@ public:
    * @brief Get the trajectories generated in a cycle for visualization
    * @return Set of trajectories evaluated in cycle
    */
-  models::Trajectories& getGeneratedTrajectories();
+  models::Trajectories getGeneratedTrajectories();
 
   /**
    * @brief Get the optimal trajectory for a cycle for visualization
@@ -218,37 +220,25 @@ protected:
    */
   bool fallback(bool fail, uint32_t& error);
 
+  void updateCriticsData();
+
 protected:
   ros::NodeHandle parent_nh_;
-
-  mutable std::mutex mmodel_mtx_;
-  mutable std::mutex c_manager_mtx_;
-  mutable std::mutex n_generator_mtx_;
-  mutable std::mutex settings_mtx_;
-  mutable std::mutex state_mtx_;
-  mutable std::mutex cs_mtx_;
-  mutable std::mutex ch_mtx_;
-  mutable std::mutex gt_mtx_;
-  mutable std::mutex costs_mtx_;
-  mutable std::mutex critics_mtx_;
 
   costmap_2d::Costmap2DROS* costmap_ros_;
 
   models::Path path_;
-  std::shared_ptr<MotionModel> motion_model_;
-  CriticManager critic_manager_;
-  NoiseGenerator noise_generator_;
+  safe::Safe<std::shared_ptr<MotionModel>> motion_model_;
+  safe::Safe<CriticManager> critic_manager_;
+  safe::Safe<NoiseGenerator> noise_generator_;
 
-  models::OptimizerSettings settings_;
-  models::State state_;
-  models::ControlSequence control_sequence_;
-  std::array<mppi::models::Control, 4> control_history_;
-  models::Trajectories generated_trajectories_;
-  xt::xtensor<float, 1> costs_;
-
-  CriticData critics_data_ = {
-    state_, generated_trajectories_, path_, costs_, settings_.model_dt, false, nullptr, std::nullopt, std::nullopt
-  };  /// Caution, keep references
+  safe::Safe<models::OptimizerSettings> settings_;
+  safe::Safe<models::State> state_;
+  safe::Safe<models::ControlSequence> control_sequence_;
+  safe::Safe<std::array<mppi::models::Control, 4>> control_history_;
+  safe::Safe<models::Trajectories> generated_trajectories_;
+  safe::Safe<xt::xtensor<float, 1>> costs_;
+  safe::Safe<CriticData> critics_data_;
 };
 
 }  // namespace mppi

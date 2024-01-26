@@ -1,9 +1,13 @@
-[submodule "external/xtensor"]
+[submodule "xtensor"]
 	path = external/xtensor
 	url = https://github.com/xtensor-stack/xtensor.git
-[submodule "external/xtl"]
+[submodule "xtl"]
 	path = external/xtl
 	url = https://github.com/xtensor-stack/xtl.git
-[submodule "external/xsimd"]
+[submodule "xsimd"]
 	path = external/xsimd
 	url = https://github.com/xtensor-stack/xsimd.git
+[submodule "safe"]
+	path = external/safe
+	url = https://github.com/LouisCharlesC/safe.git
+  branch = master

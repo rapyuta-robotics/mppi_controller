@@ -63,20 +63,19 @@ void NoiseGenerator::setNoisedControls(
   xt::noalias(state.cwz) = control_sequence.wz + noises_wz_;
 }
 
-void NoiseGenerator::reset(const mppi::models::OptimizerSettings& settings, bool is_holonomic)
+void NoiseGenerator::reset(int batch_size, int time_steps, bool is_holonomic)
 {
   {
     std::unique_lock<std::mutex> guard(param_mtx_);
-    settings_ = settings;
     is_holonomic_ = is_holonomic;
   }
 
   // Recompute the noises on reset, initialization, and fallback
   {
     std::unique_lock<std::mutex> guard(noise_lock_);
-    xt::noalias(noises_vx_) = xt::zeros<float>({settings_.batch_size, settings_.time_steps});
-    xt::noalias(noises_vy_) = xt::zeros<float>({settings_.batch_size, settings_.time_steps});
-    xt::noalias(noises_wz_) = xt::zeros<float>({settings_.batch_size, settings_.time_steps});
+    xt::noalias(noises_vx_) = xt::zeros<float>({ batch_size, time_steps });
+    xt::noalias(noises_vy_) = xt::zeros<float>({ batch_size, time_steps });
+    xt::noalias(noises_wz_) = xt::zeros<float>({ batch_size, time_steps });
     ready_ = true;
   }
 }

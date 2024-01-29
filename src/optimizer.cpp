@@ -39,7 +39,7 @@ void Optimizer::initialize(const ros::NodeHandle& parent_nh, costmap_2d::Costmap
 
   costmap_ros_ = costmap_ros;
 
-  (*critics_data_.writeAccess()).fail_flag = false;
+  critics_data_.fail_flag = false;
 
   (*critic_manager_.writeAccess()).on_configure(parent_nh_, costmap_ros_);
 
@@ -141,7 +141,7 @@ uint32_t Optimizer::evalControl(const geometry_msgs::PoseStamped& robot_pose, co
   {
     optimize();
 
-    const bool fail_flag = (*critics_data_.readAccess()).fail_flag;
+    const bool fail_flag = critics_data_.fail_flag;
     if (uint32_t error = mbf_msgs::ExePathResult::SUCCESS; !fallback(fail_flag, error))
     {
       if (error != mbf_msgs::ExePathResult::SUCCESS)
@@ -172,7 +172,7 @@ void Optimizer::optimize()
   for (size_t i = 0; i < iteration_count; ++i)
   {
     generateNoisedTrajectories();
-    (*critic_manager_.writeAccess()).evalTrajectoriesScores(*critics_data_.writeAccess());
+    (*critic_manager_.writeAccess()).evalTrajectoriesScores(critics_data_);
     updateControlSequence();
   }
 }
@@ -211,9 +211,9 @@ void Optimizer::prepare(const geometry_msgs::PoseStamped& robot_pose, const geom
   path_ = utils::toTensor(plan);
 
   (*costs_.writeAccess())->fill(0);
-  (*critics_data_.writeAccess()).fail_flag = false;
-  (*critics_data_.writeAccess()).furthest_reached_path_point.reset();
-  (*critics_data_.writeAccess()).path_pts_valid.reset();
+  critics_data_.fail_flag = false;
+  critics_data_.furthest_reached_path_point.reset();
+  critics_data_.path_pts_valid.reset();
 }
 
 void Optimizer::shiftControlSequence()
@@ -402,17 +402,17 @@ void Optimizer::updateControlSequence()
   const auto bounded_noises_vx = cvx - vx;
   const auto bounded_noises_wz = cwz - wz;
 
-  xt::noalias(*costs_.writeAccess()) +=
+  xt::noalias(*(*costs_.writeAccess())) +=
       gamma / powf(sampling_std.vx, 2) *
       xt::sum(xt::view(vx, xt::newaxis(), xt::all()) * bounded_noises_vx, 1, immediate);
-  xt::noalias(*costs_.writeAccess()) +=
+  xt::noalias(*(*costs_.writeAccess())) +=
       gamma / powf(sampling_std.wz, 2) *
       xt::sum(xt::view(wz, xt::newaxis(), xt::all()) * bounded_noises_wz, 1, immediate);
 
   if (isHolonomic())
   {
     const auto bounded_noises_vy = cvy - vy;
-    xt::noalias(*costs_.writeAccess()) +=
+    xt::noalias(*(*costs_.writeAccess())) +=
         gamma / powf(sampling_std.vy, 2) *
         xt::sum(xt::view(vy, xt::newaxis(), xt::all()) * bounded_noises_vy, 1, immediate);
   }
@@ -466,6 +466,7 @@ void Optimizer::setMotionModel(const int model)
       (*motion_model_.writeAccess()) = std::make_shared<DiffDriveMotionModel>();
       break;
   }
+  critics_data_.motion_model = *motion_model_.writeAccess();
 }
 
 void Optimizer::setSpeedLimit(double speed_limit, bool percentage)

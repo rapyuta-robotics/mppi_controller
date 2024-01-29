@@ -232,7 +232,7 @@ protected:
   costmap_2d::Costmap2DROS* costmap_ros_;
 
   models::Path path_;
-  safe::Safe<MotionModelPtr> motion_model_{ {}, std::make_shared<MotionModel>() };
+  safe::Safe<MotionModelPtr> motion_model_;
   safe::Safe<CriticManager> critic_manager_;
   safe::Safe<NoiseGenerator> noise_generator_;
 
@@ -241,11 +241,16 @@ protected:
   safe::Safe<TrajectoriesPtr> generated_trajectories_{ {}, std::make_shared<models::Trajectories>() };
   safe::Safe<models::ControlSequence> control_sequence_;
   safe::Safe<std::array<mppi::models::Control, 4>> control_history_;
-  safe::Safe<CostPtr> costs_;
-  safe::Safe<CriticData> critics_data_{ {},
-                                        { *state_.readAccess(), *generated_trajectories_.readAccess(), path_,
-                                          *costs_.writeAccess(), settings_.readAccess()->model_dt, false,
-                                          *motion_model_.writeAccess(), std::nullopt, std::nullopt } };
+  safe::Safe<CostPtr> costs_{ {}, std::make_shared<xt::xtensor<float, 1>>() };
+  CriticData critics_data_{ *state_.readAccess(),
+                            *generated_trajectories_.readAccess(),
+                            path_,
+                            *costs_.writeAccess(),
+                            settings_.readAccess()->model_dt,
+                            false,
+                            nullptr,
+                            std::nullopt,
+                            std::nullopt };
 };
 
 }  // namespace mppi

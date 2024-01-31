@@ -42,7 +42,6 @@ void Optimizer::initialize(const ros::NodeHandle& parent_nh, costmap_2d::Costmap
   critic_manager_.on_configure(parent_nh_, costmap_ros_);
 
   models::OptimizerSettings default_settings;
-  // setParams(config);
 }
 
 void Optimizer::shutdown()
@@ -230,13 +229,15 @@ bool Optimizer::isHolonomic() const
 
 void Optimizer::applyControlSequenceConstraints()
 {
+  auto& s = settings_;
+
   if (isHolonomic())
   {
-    control_sequence_.vy = xt::clip(control_sequence_.vy, -settings_.constraints.vy, settings_.constraints.vy);
+    control_sequence_.vy = xt::clip(control_sequence_.vy, -s.constraints.vy, s.constraints.vy);
   }
 
-  control_sequence_.vx = xt::clip(control_sequence_.vx, settings_.constraints.vx_min, settings_.constraints.vx_max);
-  control_sequence_.wz = xt::clip(control_sequence_.wz, -settings_.constraints.wz, settings_.constraints.wz);
+  control_sequence_.vx = xt::clip(control_sequence_.vx, s.constraints.vx_min, s.constraints.vx_max);
+  control_sequence_.wz = xt::clip(control_sequence_.wz, -s.constraints.wz, s.constraints.wz);
 
   motion_model_->applyConstraints(control_sequence_);
 }
@@ -348,25 +349,26 @@ xt::xtensor<float, 2> Optimizer::getOptimizedTrajectory()
 
 void Optimizer::updateControlSequence()
 {
+  auto& s = settings_;
   auto bounded_noises_vx = state_.cvx - control_sequence_.vx;
   auto bounded_noises_wz = state_.cwz - control_sequence_.wz;
   xt::noalias(costs_) +=
-      settings_.gamma / powf(settings_.sampling_std.vx, 2) *
+      s.gamma / powf(s.sampling_std.vx, 2) *
       xt::sum(xt::view(control_sequence_.vx, xt::newaxis(), xt::all()) * bounded_noises_vx, 1, immediate);
   xt::noalias(costs_) +=
-      settings_.gamma / powf(settings_.sampling_std.wz, 2) *
+      s.gamma / powf(s.sampling_std.wz, 2) *
       xt::sum(xt::view(control_sequence_.wz, xt::newaxis(), xt::all()) * bounded_noises_wz, 1, immediate);
 
   if (isHolonomic())
   {
     auto bounded_noises_vy = state_.cvy - control_sequence_.vy;
     xt::noalias(costs_) +=
-        settings_.gamma / powf(settings_.sampling_std.vy, 2) *
+        s.gamma / powf(s.sampling_std.vy, 2) *
         xt::sum(xt::view(control_sequence_.vy, xt::newaxis(), xt::all()) * bounded_noises_vy, 1, immediate);
   }
 
   auto&& costs_normalized = costs_ - xt::amin(costs_, immediate);
-  auto&& exponents = xt::eval(xt::exp(-1 / settings_.temperature * costs_normalized));
+  auto&& exponents = xt::eval(xt::exp(-1 / s.temperature * costs_normalized));
   auto&& softmaxes = xt::eval(exponents / xt::sum(exponents, immediate));
   auto&& softmaxes_extened = xt::eval(xt::view(softmaxes, xt::all(), xt::newaxis()));
 

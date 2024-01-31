@@ -71,7 +71,6 @@ uint32_t MPPIController::computeVelocityCommands(const geometry_msgs::PoseStampe
   if (reconfigure_)
   {
     setParams();
-    reconfigure_ = false;
   }
 
   nav_msgs::Path transformed_plan;
@@ -238,12 +237,14 @@ void MPPIController::updateTolerances(double dist_tolerance, double angle_tolera
 void MPPIController::reconfigureCB(const mppi_controller::MPPIControllerConfig& config, uint32_t level)
 {
   // new parameters will only take effect on the next computeVelocityCommands
+  std::lock_guard<std::mutex> guard(config_mtx_);
   reconfigure_ = true;
   config_ = config;
 }
 
 void MPPIController::setParams()
 {
+  std::lock_guard<std::mutex> guard(config_mtx_);
   visualize_ = config_.visualize;
   optimizer_.setParams(config_);
   path_handler_.setParams(config_);
@@ -255,6 +256,7 @@ void MPPIController::setParams()
   limits.trans_stopped_vel = config_.trans_stopped_vel;
   limits.theta_stopped_vel = config_.theta_stopped_vel;
   planner_util_.reconfigureCB(limits, false);
+  reconfigure_ = false;
 }
 
 }  // namespace mppi_controller

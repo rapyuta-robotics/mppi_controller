@@ -23,18 +23,15 @@
 namespace mppi
 {
 
-void NoiseGenerator::initialize(const ros::NodeHandle& parent_nh, mppi::models::OptimizerSettings& settings,
-                                bool is_holonomic)
-{
-  settings_ = settings;
-  is_holonomic_ = is_holonomic;
-  active_ = false;
-}
-
 void NoiseGenerator::shutdown()
 {
   active_ = false;
-  ready_ = true;
+
+  {
+    std::unique_lock<std::mutex> guard(noise_lock_);
+    ready_ = true;
+  }
+
   noise_cond_.notify_all();
   if (noise_thread_.joinable()) {
     noise_thread_.join();
@@ -63,40 +60,45 @@ void NoiseGenerator::setNoisedControls(
   xt::noalias(state.cwz) = control_sequence.wz + noises_wz_;
 }
 
-void NoiseGenerator::reset(const mppi::models::OptimizerSettings& settings, bool is_holonomic)
+void NoiseGenerator::initialize()
 {
-  {
-    std::unique_lock<std::mutex> guard(param_mtx_);
-    settings_ = settings;
-    is_holonomic_ = is_holonomic;
-  }
-
   // Recompute the noises on reset, initialization, and fallback
-  {
-    std::unique_lock<std::mutex> guard(noise_lock_);
-    xt::noalias(noises_vx_) = xt::zeros<float>({settings_.batch_size, settings_.time_steps});
-    xt::noalias(noises_vy_) = xt::zeros<float>({settings_.batch_size, settings_.time_steps});
-    xt::noalias(noises_wz_) = xt::zeros<float>({settings_.batch_size, settings_.time_steps});
-    ready_ = true;
-  }
+  ROS_INFO_STREAM("Recomputing noises with batch size: " << settings_.batch_size
+                                                         << " and time steps: " << settings_.time_steps);
+  xt::noalias(noises_vx_) = xt::zeros<float>({ settings_.batch_size, settings_.time_steps });
+  xt::noalias(noises_vy_) = xt::zeros<float>({ settings_.batch_size, settings_.time_steps });
+  xt::noalias(noises_wz_) = xt::zeros<float>({ settings_.batch_size, settings_.time_steps });
+
+  batch_size_ = settings_.batch_size;
+  time_steps_ = settings_.time_steps;
+
+  std::unique_lock<std::mutex> guard(noise_lock_);
+  ready_ = true;
 }
 
 void NoiseGenerator::noiseThread()
 {
   do {
-    std::unique_lock<std::mutex> guard(noise_lock_);
-    noise_cond_.wait(guard, [this]() {return ready_;});
-    ready_ = false;
-    generateNoisedControls();
+    {
+      std::unique_lock<std::mutex> guard(noise_lock_);
+      noise_cond_.wait(guard, [this]() { return ready_; });
+      ready_ = false;
+    }
+
+    if (active_)
+    {
+      generateNoisedControls();
+    }
   } while (active_);
 }
 
 void NoiseGenerator::generateNoisedControls()
 {
-  mppi::models::OptimizerSettings s;
+  auto& s = settings_;
+
+  if (batch_size_ != s.batch_size || time_steps_ != s.time_steps)
   {
-    std::unique_lock<std::mutex> guard(param_mtx_);
-    s = settings_;
+    initialize();
   }
 
   xt::noalias(noises_vx_) = xt::random::randn<float>(
@@ -114,21 +116,20 @@ void NoiseGenerator::generateNoisedControls()
 
 void NoiseGenerator::setParams(const mppi_controller::MPPIControllerConfig& config)
 {
-  if (!regenerate_noises_ && config.regenerate_noises)
+  if (config.regenerate_noises)
   {
-    active_ = true;
-    regenerate_noises_ = config.regenerate_noises;
-    noise_thread_ = std::thread(std::bind(&NoiseGenerator::noiseThread, this));
-  }
-  else
-  {
-    active_ = false;
-    if (noise_thread_.joinable())
+    if (regenerate_noises_)
     {
-      noise_thread_.join();
+      return;
     }
-    generateNoisedControls();
+    regenerate_noises_ = true;
+    active_ = true;
+    noise_thread_ = std::thread(std::bind(&NoiseGenerator::noiseThread, this));
+    return;
   }
+
+  shutdown();
+  generateNoisedControls();
 }
 
 }  // namespace mppi

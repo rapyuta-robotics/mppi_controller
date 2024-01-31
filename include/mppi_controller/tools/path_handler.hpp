@@ -142,7 +142,6 @@ protected:
   nav_msgs::Path global_plan_;
   nav_msgs::Path global_plan_up_to_inversion_;
 
-  mutable std::mutex params_mutex_;
   mppi_controller::MPPIControllerConfig config_;
   std::atomic<unsigned int> inversion_locale_{ 0u };
 };

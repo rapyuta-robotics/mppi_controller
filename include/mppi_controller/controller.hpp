@@ -137,6 +137,7 @@ protected:
   void visualize(nav_msgs::Path transformed_plan);
 
   void reconfigureCB(const mppi_controller::MPPIControllerConfig& config, uint32_t level);
+  void setParams();
 
   ros::NodeHandle parent_nh_;
   ros::NodeHandle pnh_;
@@ -145,6 +146,8 @@ protected:
   NavTolerances latest_limits_;
   base_local_planner::LocalPlannerUtil planner_util_;
   base_local_planner::OdometryHelperRos odom_helper_;
+  mppi_controller::MPPIControllerConfig config_;
+  bool reconfigure_{ false };
 
   Optimizer optimizer_;
   PathHandler path_handler_;

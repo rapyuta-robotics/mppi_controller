@@ -18,7 +18,7 @@
 #include <string>
 #include <memory>
 #include <thread>
-#include <mutex>
+#include <atomic>
 #include <condition_variable>
 
 #include <xtensor/xtensor.hpp>
@@ -45,16 +45,11 @@ public:
   /**
    * @brief Constructor for mppi::NoiseGenerator
    */
-  NoiseGenerator() = default;
-
-  /**
-   * @brief Initialize noise generator with settings and model types
-   * @param settings Settings of controller
-   * @param is_holonomic If base is holonomic
-   * @param name Namespace for configs
-   * @param param_handler Get parameters util
-   */
-  void initialize(const ros::NodeHandle& parent_nh, mppi::models::OptimizerSettings& settings, bool is_holonomic);
+  NoiseGenerator(models::OptimizerSettings& settings, bool& is_holonomic)
+    : settings_(settings), is_holonomic_(is_holonomic)
+  {
+    initialize();
+  }
 
   /**
    * @brief Shutdown noise generator thread
@@ -73,13 +68,6 @@ public:
    */
   void setNoisedControls(models::State& state, const models::ControlSequence& control_sequence);
 
-  /**
-   * @brief Reset noise generator with settings and model types
-   * @param settings Settings of controller
-   * @param is_holonomic If base is holonomic
-   */
-  void reset(const mppi::models::OptimizerSettings& settings, bool is_holonomic);
-
   void setParams(const mppi_controller::MPPIControllerConfig& config);
 
 protected:
@@ -97,18 +85,19 @@ protected:
    */
   void generateNoisedControls();
 
+  void initialize();
+
   xt::xtensor<float, 2> noises_vx_;
   xt::xtensor<float, 2> noises_vy_;
   xt::xtensor<float, 2> noises_wz_;
 
-  ros::NodeHandle pnh_;
   std::thread noise_thread_;
   std::condition_variable noise_cond_;
   std::mutex noise_lock_;
 
-  std::mutex param_mtx_;
-  mppi::models::OptimizerSettings settings_;
-  bool is_holonomic_;
+  const models::OptimizerSettings& settings_;
+  const bool& is_holonomic_;
+  int batch_size_, time_steps_;
   std::atomic_bool active_{ false };
   bool ready_{ false }, regenerate_noises_{ false };
 };

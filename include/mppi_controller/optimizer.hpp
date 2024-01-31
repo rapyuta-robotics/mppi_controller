@@ -221,16 +221,15 @@ protected:
 protected:
   ros::NodeHandle parent_nh_;
 
-  mutable std::mutex param_mtx_;
-
   costmap_2d::Costmap2DROS* costmap_ros_;
 
   std::shared_ptr<MotionModel> motion_model_;
+  bool is_holonomic_{ false };
 
   CriticManager critic_manager_;
-  NoiseGenerator noise_generator_;
 
   models::OptimizerSettings settings_;
+  NoiseGenerator noise_generator_{ settings_, is_holonomic_ };
 
   models::State state_;
   models::ControlSequence control_sequence_;

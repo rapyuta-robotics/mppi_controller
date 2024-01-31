@@ -79,9 +79,6 @@ uint32_t MPPIController::computeVelocityCommands(const geometry_msgs::PoseStampe
     return error;
   }
 
-  costmap_2d::Costmap2D* costmap = costmap_ros_->getCostmap();
-  std::unique_lock<costmap_2d::Costmap2D::mutex_t> costmap_lock(*(costmap->getMutex()));
-
   if (uint32_t error = optimizer_.evalControl(robot_pose, robot_speed.twist, transformed_plan, cmd_vel);
       error != mbf_msgs::ExePathResult::SUCCESS)
   {

@@ -141,6 +141,9 @@ protected:
 
   ros::NodeHandle parent_nh_;
   ros::NodeHandle pnh_;
+
+  std::mutex config_mtx_;
+
   costmap_2d::Costmap2DROS* costmap_ros_;
   tf2_ros::Buffer* tf_buffer_;
   NavTolerances latest_limits_;

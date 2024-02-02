@@ -42,8 +42,6 @@ void Optimizer::initialize(const ros::NodeHandle& parent_nh, costmap_2d::Costmap
   critic_manager_.on_configure(parent_nh_, costmap_ros_);
 
   models::OptimizerSettings default_settings;
-  noise_generator_.initialize(parent_nh_, default_settings, false);
-  setParams(config);
 }
 
 void Optimizer::shutdown()
@@ -53,39 +51,36 @@ void Optimizer::shutdown()
 
 void Optimizer::setParams(const mppi_controller::MPPIControllerConfig& config)
 {
-  {
-    std::lock_guard<std::mutex> lock(param_mtx_);
-    auto& s = settings_;
-    s.model_dt = config.model_dt;
-    s.time_steps = config.time_steps;
-    s.batch_size = config.batch_size;
-    s.iteration_count = config.iteration_count;
-    s.temperature = config.temperature;
-    s.gamma = config.gamma;
-    s.retry_attempt_limit = config.retry_attempt_limit;
-    s.base_constraints.vx_max = config.vx_max;
-    s.base_constraints.vx_min = config.vx_min;
-    s.base_constraints.vy = config.vy_max;
-    s.base_constraints.wz = config.wz_max;
-    s.sampling_std.vx = config.vx_std;
-    s.sampling_std.vy = config.vy_std;
-    s.sampling_std.wz = config.wz_std;
-    s.constraints = s.base_constraints;
+  auto& s = settings_;
+  s.model_dt = config.model_dt;
+  s.time_steps = config.time_steps;
+  s.batch_size = config.batch_size;
+  s.iteration_count = config.iteration_count;
+  s.temperature = config.temperature;
+  s.gamma = config.gamma;
+  s.retry_attempt_limit = config.retry_attempt_limit;
+  s.base_constraints.vx_max = config.vx_max;
+  s.base_constraints.vx_min = config.vx_min;
+  s.base_constraints.vy = config.vy_max;
+  s.base_constraints.wz = config.wz_max;
+  s.sampling_std.vx = config.vx_std;
+  s.sampling_std.vy = config.vy_std;
+  s.sampling_std.wz = config.wz_std;
+  s.constraints = s.base_constraints;
 
-    ROS_DEBUG_NAMED("Optimizer",
-                    "Updating setting params: model_dt: %f, time_steps: %d, batch_size: %d, "
-                    "iteration_count: %d, temperature: %f, gamma: %f, retry_attempt_limit: %d, "
-                    "vx_max: %f, vx_min: %f, vy_max: %f, wz_max: %f, vx_std: %f, vy_std: %f, "
-                    "wz_std: %f",
-                    s.model_dt, s.time_steps, s.batch_size, s.iteration_count, s.temperature, s.gamma,
-                    s.retry_attempt_limit, s.base_constraints.vx_max, s.base_constraints.vx_min, s.base_constraints.vy,
-                    s.base_constraints.wz, s.sampling_std.vx, s.sampling_std.vy, s.sampling_std.wz);
-  }
+  ROS_DEBUG_NAMED("Optimizer",
+                  "Updating setting params: model_dt: %f, time_steps: %d, batch_size: %d, "
+                  "iteration_count: %d, temperature: %f, gamma: %f, retry_attempt_limit: %d, "
+                  "vx_max: %f, vx_min: %f, vy_max: %f, wz_max: %f, vx_std: %f, vy_std: %f, "
+                  "wz_std: %f",
+                  s.model_dt, s.time_steps, s.batch_size, s.iteration_count, s.temperature, s.gamma,
+                  s.retry_attempt_limit, s.base_constraints.vx_max, s.base_constraints.vx_min, s.base_constraints.vy,
+                  s.base_constraints.wz, s.sampling_std.vx, s.sampling_std.vy, s.sampling_std.wz);
 
   setMotionModel(config.motion_model);
   setOffset(config.controller_frequency);
-  reset();
   noise_generator_.setParams(config);
+  reset();
 }
 
 void Optimizer::setOffset(double controller_frequency)
@@ -93,8 +88,6 @@ void Optimizer::setOffset(double controller_frequency)
   const double controller_period = 1.0 / controller_frequency;
   constexpr double eps = 1e-6;
 
-  {
-    std::lock_guard<std::mutex> lock(param_mtx_);
     if ((controller_period + eps) < settings_.model_dt)
     {
       ROS_WARN("Controller period is less then model dt, consider setting it equal");
@@ -109,29 +102,21 @@ void Optimizer::setOffset(double controller_frequency)
       ROS_WARN("Controller period is more then model dt, we ignore and consider it equal");
       settings_.shift_control_sequence = true;
     }
-  }
 }
 
 void Optimizer::reset()
 {
-  mppi::models::OptimizerSettings settings_copy;
-  {
-    std::lock_guard<std::mutex> lock(param_mtx_);
-    settings_copy = settings_;
-  }
-
-  state_.reset(settings_copy.batch_size, settings_copy.time_steps);
-  control_sequence_.reset(settings_copy.time_steps);
+  state_.reset(settings_.batch_size, settings_.time_steps);
+  control_sequence_.reset(settings_.time_steps);
   control_history_[0] = { 0.0, 0.0, 0.0 };
   control_history_[1] = { 0.0, 0.0, 0.0 };
   control_history_[2] = { 0.0, 0.0, 0.0 };
   control_history_[3] = { 0.0, 0.0, 0.0 };
 
-  costs_ = xt::zeros<float>({ settings_copy.batch_size });
-  generated_trajectories_.reset(settings_copy.batch_size, settings_copy.time_steps);
+  costs_ = xt::zeros<float>({ settings_.batch_size });
+  generated_trajectories_.reset(settings_.batch_size, settings_.time_steps);
 
-  noise_generator_.reset(settings_copy, isHolonomic());
-  critic_manager_.updateConstraints(settings_copy.constraints);
+  critic_manager_.updateConstraints(settings_.constraints);
   ROS_INFO("Optimizer reset");
 }
 
@@ -154,16 +139,10 @@ uint32_t Optimizer::evalControl(const geometry_msgs::PoseStamped& robot_pose, co
     }
   }
 
-  mppi::models::OptimizerSettings settings;
-  {
-    std::lock_guard<std::mutex> lock(param_mtx_);
-    settings = settings_;
-  }
-
-  utils::savitskyGolayFilter(control_sequence_, control_history_, settings);
+  utils::savitskyGolayFilter(control_sequence_, control_history_, settings_);
   cmd_vel = getControlFromSequenceAsTwist(plan.header);
 
-  if (settings.shift_control_sequence)
+  if (settings_.shift_control_sequence)
   {
     shiftControlSequence();
   }
@@ -173,13 +152,7 @@ uint32_t Optimizer::evalControl(const geometry_msgs::PoseStamped& robot_pose, co
 
 void Optimizer::optimize()
 {
-  int iteration_count;
-  {
-    std::lock_guard<std::mutex> lock(param_mtx_);
-    iteration_count = settings_.iteration_count;
-  }
-
-  for (size_t i = 0; i < iteration_count; ++i)
+  for (size_t i = 0; i < settings_.iteration_count; ++i)
   {
     generateNoisedTrajectories();
     critic_manager_.evalTrajectoriesScores(critics_data_);
@@ -199,13 +172,7 @@ bool Optimizer::fallback(bool fail, uint32_t& error)
 
   reset();
 
-  int retry_attempt_limit;
-  {
-    std::lock_guard<std::mutex> lock(param_mtx_);
-    retry_attempt_limit = settings_.retry_attempt_limit;
-  }
-
-  if (++counter > retry_attempt_limit)
+  if (++counter > settings_.retry_attempt_limit)
   {
     counter = 0;
     ROS_ERROR_NAMED("Optimizer", "Optimizer fail to compute path");
@@ -257,24 +224,20 @@ void Optimizer::generateNoisedTrajectories()
 
 bool Optimizer::isHolonomic() const
 {
-  return motion_model_->isHolonomic();
+  return is_holonomic_;
 }
 
 void Optimizer::applyControlSequenceConstraints()
 {
-  mppi::models::ControlConstraints constraints;
-  {
-    std::lock_guard<std::mutex> lock(param_mtx_);
-    constraints = settings_.constraints;
-  }
+  auto& s = settings_;
 
   if (isHolonomic())
   {
-    control_sequence_.vy = xt::clip(control_sequence_.vy, -constraints.vy, constraints.vy);
+    control_sequence_.vy = xt::clip(control_sequence_.vy, -s.constraints.vy, s.constraints.vy);
   }
 
-  control_sequence_.vx = xt::clip(control_sequence_.vx, constraints.vx_min, constraints.vx_max);
-  control_sequence_.wz = xt::clip(control_sequence_.wz, -constraints.wz, constraints.wz);
+  control_sequence_.vx = xt::clip(control_sequence_.vx, s.constraints.vx_min, s.constraints.vx_max);
+  control_sequence_.wz = xt::clip(control_sequence_.wz, -s.constraints.wz, s.constraints.wz);
 
   motion_model_->applyConstraints(control_sequence_);
 }
@@ -303,12 +266,6 @@ void Optimizer::propagateStateVelocitiesFromInitials(models::State& state) const
 
 void Optimizer::integrateStateVelocities(xt::xtensor<float, 2>& trajectory, const xt::xtensor<float, 2>& sequence) const
 {
-  double model_dt;
-  {
-    std::lock_guard<std::mutex> lock(param_mtx_);
-    model_dt = settings_.model_dt;
-  }
-
   float initial_yaw = tf2::getYaw(state_.pose.pose.orientation);
 
   const auto vx = xt::view(sequence, xt::all(), 0);
@@ -319,7 +276,7 @@ void Optimizer::integrateStateVelocities(xt::xtensor<float, 2>& trajectory, cons
   auto traj_y = xt::view(trajectory, xt::all(), 1);
   auto traj_yaws = xt::view(trajectory, xt::all(), 2);
 
-  xt::noalias(traj_yaws) = xt::cumsum(wz * model_dt, 0) + initial_yaw;
+  xt::noalias(traj_yaws) = xt::cumsum(wz * settings_.model_dt, 0) + initial_yaw;
 
   auto&& yaw_cos = xt::xtensor<float, 1>::from_shape(traj_yaws.shape());
   auto&& yaw_sin = xt::xtensor<float, 1>::from_shape(traj_yaws.shape());
@@ -340,21 +297,15 @@ void Optimizer::integrateStateVelocities(xt::xtensor<float, 2>& trajectory, cons
     dy = dy + vy * yaw_cos;
   }
 
-  xt::noalias(traj_x) = state_.pose.pose.position.x + xt::cumsum(dx * model_dt, 0);
-  xt::noalias(traj_y) = state_.pose.pose.position.y + xt::cumsum(dy * model_dt, 0);
+  xt::noalias(traj_x) = state_.pose.pose.position.x + xt::cumsum(dx * settings_.model_dt, 0);
+  xt::noalias(traj_y) = state_.pose.pose.position.y + xt::cumsum(dy * settings_.model_dt, 0);
 }
 
 void Optimizer::integrateStateVelocities(models::Trajectories& trajectories, const models::State& state) const
 {
-  double model_dt;
-  {
-    std::lock_guard<std::mutex> lock(param_mtx_);
-    model_dt = settings_.model_dt;
-  }
-
   const float initial_yaw = tf2::getYaw(state.pose.pose.orientation);
 
-  xt::noalias(trajectories.yaws) = xt::cumsum(state.wz * model_dt, 1) + initial_yaw;
+  xt::noalias(trajectories.yaws) = xt::cumsum(state.wz * settings_.model_dt, 1) + initial_yaw;
 
   const auto yaws_cutted = xt::view(trajectories.yaws, xt::all(), xt::range(0, -1));
 
@@ -374,21 +325,15 @@ void Optimizer::integrateStateVelocities(models::Trajectories& trajectories, con
     dy = dy + state.vy * yaw_cos;
   }
 
-  xt::noalias(trajectories.x) = state.pose.pose.position.x + xt::cumsum(dx * model_dt, 1);
-  xt::noalias(trajectories.y) = state.pose.pose.position.y + xt::cumsum(dy * model_dt, 1);
+  xt::noalias(trajectories.x) = state.pose.pose.position.x + xt::cumsum(dx * settings_.model_dt, 1);
+  xt::noalias(trajectories.y) = state.pose.pose.position.y + xt::cumsum(dy * settings_.model_dt, 1);
 }
 
 xt::xtensor<float, 2> Optimizer::getOptimizedTrajectory()
 {
-  int time_steps;
-  {
-    std::lock_guard<std::mutex> lock(param_mtx_);
-    time_steps = settings_.time_steps;
-  }
-
-  auto&& sequence =
-      xt::xtensor<float, 2>::from_shape({ static_cast<long unsigned int>(time_steps), isHolonomic() ? 3u : 2u });
-  auto&& trajectories = xt::xtensor<float, 2>::from_shape({ static_cast<long unsigned int>(time_steps), 3 });
+  auto&& sequence = xt::xtensor<float, 2>::from_shape(
+      { static_cast<long unsigned int>(settings_.time_steps), isHolonomic() ? 3u : 2u });
+  auto&& trajectories = xt::xtensor<float, 2>::from_shape({ static_cast<long unsigned int>(settings_.time_steps), 3 });
 
   xt::noalias(xt::view(sequence, xt::all(), 0)) = control_sequence_.vx;
   xt::noalias(xt::view(sequence, xt::all(), 1)) = control_sequence_.wz;
@@ -404,31 +349,26 @@ xt::xtensor<float, 2> Optimizer::getOptimizedTrajectory()
 
 void Optimizer::updateControlSequence()
 {
-  mppi::models::OptimizerSettings settings_copy;
-  {
-    std::lock_guard<std::mutex> lock(param_mtx_);
-    settings_copy = settings_;
-  }
-
+  auto& s = settings_;
   auto bounded_noises_vx = state_.cvx - control_sequence_.vx;
   auto bounded_noises_wz = state_.cwz - control_sequence_.wz;
   xt::noalias(costs_) +=
-      settings_copy.gamma / powf(settings_copy.sampling_std.vx, 2) *
+      s.gamma / powf(s.sampling_std.vx, 2) *
       xt::sum(xt::view(control_sequence_.vx, xt::newaxis(), xt::all()) * bounded_noises_vx, 1, immediate);
   xt::noalias(costs_) +=
-      settings_copy.gamma / powf(settings_copy.sampling_std.wz, 2) *
+      s.gamma / powf(s.sampling_std.wz, 2) *
       xt::sum(xt::view(control_sequence_.wz, xt::newaxis(), xt::all()) * bounded_noises_wz, 1, immediate);
 
   if (isHolonomic())
   {
     auto bounded_noises_vy = state_.cvy - control_sequence_.vy;
     xt::noalias(costs_) +=
-        settings_copy.gamma / powf(settings_copy.sampling_std.vy, 2) *
+        s.gamma / powf(s.sampling_std.vy, 2) *
         xt::sum(xt::view(control_sequence_.vy, xt::newaxis(), xt::all()) * bounded_noises_vy, 1, immediate);
   }
 
   auto&& costs_normalized = costs_ - xt::amin(costs_, immediate);
-  auto&& exponents = xt::eval(xt::exp(-1 / settings_copy.temperature * costs_normalized));
+  auto&& exponents = xt::eval(xt::exp(-1 / s.temperature * costs_normalized));
   auto&& softmaxes = xt::eval(exponents / xt::sum(exponents, immediate));
   auto&& softmaxes_extened = xt::eval(xt::view(softmaxes, xt::all(), xt::newaxis()));
 
@@ -478,6 +418,7 @@ void Optimizer::setMotionModel(const int model)
       motion_model_ = std::make_shared<DiffDriveMotionModel>();
       break;
   }
+  is_holonomic_ = motion_model_->isHolonomic();
 }
 
 void Optimizer::setSpeedLimit(double speed_limit, bool percentage)

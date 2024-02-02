@@ -327,6 +327,8 @@ inline void setPathFurthestPointIfNotSet(CriticData& data)
 inline void findPathCosts(CriticData& data, costmap_2d::Costmap2DROS* costmap_ros)
 {
   auto* costmap = costmap_ros->getCostmap();
+  std::unique_lock<costmap_2d::Costmap2D::mutex_t> costmap_lock(*(costmap->getMutex()));
+
   unsigned int map_x, map_y;
   const size_t path_segments_count = data.path.x.shape(0) - 1;
   data.path_pts_valid = std::vector<bool>(path_segments_count, false);

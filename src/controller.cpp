@@ -67,14 +67,17 @@ uint32_t MPPIController::computeVelocityCommands(const geometry_msgs::PoseStampe
 #ifdef BENCHMARK_TESTING
   auto start = std::chrono::system_clock::now();
 #endif
+
+  if (reconfigure_)
+  {
+    setParams();
+  }
+
   nav_msgs::Path transformed_plan;
   if (auto error = path_handler_.transformPath(robot_pose, transformed_plan); error != mbf_msgs::ExePathResult::SUCCESS)
   {
     return error;
   }
-
-  costmap_2d::Costmap2D* costmap = costmap_ros_->getCostmap();
-  std::unique_lock<costmap_2d::Costmap2D::mutex_t> costmap_lock(*(costmap->getMutex()));
 
   if (uint32_t error = optimizer_.evalControl(robot_pose, robot_speed.twist, transformed_plan, cmd_vel);
       error != mbf_msgs::ExePathResult::SUCCESS)
@@ -230,17 +233,27 @@ void MPPIController::updateTolerances(double dist_tolerance, double angle_tolera
 
 void MPPIController::reconfigureCB(const mppi_controller::MPPIControllerConfig& config, uint32_t level)
 {
-  visualize_ = config.visualize;
-  optimizer_.setParams(config);
-  path_handler_.setParams(config);
-  trajectory_visualizer_.setParams(config);
-  latest_limits_.xy_goal_tolerance = config.xy_goal_tolerance;
-  latest_limits_.yaw_goal_tolerance = config.yaw_goal_tolerance;
+  // new parameters will only take effect on the next computeVelocityCommands
+  std::lock_guard<std::mutex> guard(config_mtx_);
+  reconfigure_ = true;
+  config_ = config;
+}
+
+void MPPIController::setParams()
+{
+  std::lock_guard<std::mutex> guard(config_mtx_);
+  visualize_ = config_.visualize;
+  optimizer_.setParams(config_);
+  path_handler_.setParams(config_);
+  trajectory_visualizer_.setParams(config_);
+  latest_limits_.xy_goal_tolerance = config_.xy_goal_tolerance;
+  latest_limits_.yaw_goal_tolerance = config_.yaw_goal_tolerance;
 
   auto limits = planner_util_.getCurrentLimits();
-  limits.trans_stopped_vel = config.trans_stopped_vel;
-  limits.theta_stopped_vel = config.theta_stopped_vel;
+  limits.trans_stopped_vel = config_.trans_stopped_vel;
+  limits.theta_stopped_vel = config_.theta_stopped_vel;
   planner_util_.reconfigureCB(limits, false);
+  reconfigure_ = false;
 }
 
 }  // namespace mppi_controller

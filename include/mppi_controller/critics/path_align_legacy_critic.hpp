@@ -51,8 +51,6 @@ protected:
   float threshold_to_consider_{0};
   float max_path_occupancy_ratio_{0};
   bool use_path_orientations_{false};
-  unsigned int power_{0};
-  float weight_{0};
 };
 
 }  // namespace mppi::critics

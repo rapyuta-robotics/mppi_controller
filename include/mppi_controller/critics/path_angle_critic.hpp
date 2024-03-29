@@ -81,9 +81,6 @@ protected:
   bool reversing_allowed_{true};
   PathAngleMode mode_{0};
 
-  unsigned int power_{0};
-  float weight_{0};
-
 private:
   inline void reconfigureCB(mppi_controller::PathAngleCriticConfig& config, uint32_t level)
   {

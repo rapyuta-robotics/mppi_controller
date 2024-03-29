@@ -66,7 +66,7 @@ void PathAlignCritic::score(CriticData & data)
   // Find integrated distance in the path
   std::vector<float> path_integrated_distances(path_segments_count, 0.0f);
   float dx = 0.0f, dy = 0.0f;
-  for (unsigned int i = 1; i != path_segments_count; i++) {
+  for (unsigned int i = 1; i < path_segments_count; i++) {
     dx = P_x(i) - P_x(i - 1);
     dy = P_y(i) - P_y(i - 1);
     float curr_dist = sqrtf(dx * dx + dy * dy);
@@ -95,6 +95,9 @@ void PathAlignCritic::score(CriticData & data)
 
       // The nearest path point to align to needs to be not in collision, else
       // let the obstacle critic take over in this region due to dynamic obstacles
+      if (data.path_pts_valid->size() <= path_pt) {
+        break;
+      }
       if ((*data.path_pts_valid)[path_pt]) {
         dx = P_x(path_pt) - Tx;
         dy = P_y(path_pt) - Ty;

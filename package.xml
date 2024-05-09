@@ -14,7 +14,6 @@
   <depend>roscpp</depend>
   <depend>angles</depend>
   <depend>base_local_planner</depend>
-  <depend>ddynamic_reconfigure</depend>
   <depend>dynamic_reconfigure</depend>
   <depend>costmap_2d</depend>
   <depend>geometry_msgs</depend>

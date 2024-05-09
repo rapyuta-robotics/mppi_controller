@@ -19,7 +19,6 @@ set(dependencies_pkgs
   angles
   roscpp
   base_local_planner
-  ddynamic_reconfigure
   dynamic_reconfigure
   costmap_2d
   geometry_msgs

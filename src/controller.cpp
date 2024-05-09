@@ -47,7 +47,7 @@ void MPPIController::initialize(std::string name, tf2_ros::Buffer* tf, costmap_2
 
   trajectory_visualizer_.on_configure(pnh_, costmap_ros_->getGlobalFrameID());
 
-  ROS_INFO_NAMED(LOGNAME, "Inititalized");
+  ROS_INFO_NAMED(LOGNAME, "Initialized");
 }
 
 MPPIController::~MPPIController()

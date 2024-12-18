@@ -133,6 +133,10 @@ void ObstaclesCritic::score(CriticData& data)
     for (size_t j = 0; j < traj_len; j++)
     {
       pose_cost = costAtPose(traj.x(i, j), traj.y(i, j), traj.yaws(i, j));
+      if (!pose_cost.cost)
+      {
+        continue;
+      }  // In free space, nothing else to do
 
       if (inCollision(pose_cost.cost))
       {

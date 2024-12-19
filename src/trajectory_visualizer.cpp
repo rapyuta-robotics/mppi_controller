@@ -43,23 +43,14 @@ void TrajectoryVisualizer::add(
     return;
   }
 
-  auto add_marker = [&](auto i) {
-      float component = static_cast<float>(i) / static_cast<float>(size);
-
-      auto pose = utils::createPose(trajectory(i, 0), trajectory(i, 1), 0.06);
-      auto scale =
-        i != size - 1 ?
-        utils::createScale(0.03, 0.03, 0.07) :
-        utils::createScale(0.07, 0.07, 0.09);
-      auto color = utils::createColor(0, component, component, 1);
-      auto marker = utils::createMarker(
-        marker_id_++, pose, scale, color, frame_id_, marker_namespace);
-      points_.markers.push_back(marker);
-    };
-
+  auto scale = utils::createScale(0.03, 0.0, 0.0);
+  auto marker = utils::createMarker(0, scale, frame_id_, marker_namespace);
   for (size_t i = 0; i < size; i++) {
-    add_marker(i);
+    float component = static_cast<float>(i) / static_cast<float>(size);
+    marker.points.emplace_back(utils::createPose(trajectory(i, 0), trajectory(i, 1), 0.06).position);
+    marker.colors.emplace_back(utils::createColor(0, component, component, 1));
   }
+  markers_.markers.emplace_back(std::move(marker));
 }
 
 void TrajectoryVisualizer::add(
@@ -67,36 +58,32 @@ void TrajectoryVisualizer::add(
 {
   auto & shape = trajectories.x.shape();
   const float shape_1 = static_cast<float>(shape[1]);
-  points_.markers.reserve(floor(shape[0] / trajectory_step_) * floor(shape[1] * time_step_));
+  markers_.markers.reserve(floor(shape[0] / trajectory_step_) * floor(shape[1] * time_step_));
 
   for (size_t i = 0; i < shape[0]; i += trajectory_step_) {
+    auto scale = utils::createScale(0.02, 0.0, 0.0);
+    auto marker = utils::createMarker(i, scale, frame_id_, marker_namespace);
     for (size_t j = 0; j < shape[1]; j += time_step_) {
       const float j_flt = static_cast<float>(j);
       float blue_component = 1.0f - j_flt / shape_1;
       float green_component = j_flt / shape_1;
-
-      auto pose = utils::createPose(trajectories.x(i, j), trajectories.y(i, j), 0.03);
-      auto scale = utils::createScale(0.03, 0.03, 0.03);
-      auto color = utils::createColor(0, green_component, blue_component, 1);
-      auto marker = utils::createMarker(
-        marker_id_++, pose, scale, color, frame_id_, marker_namespace);
-
-      points_.markers.push_back(marker);
+      marker.points.emplace_back(utils::createPose(trajectories.x(i, j), trajectories.y(i, j), 0.03).position);
+      marker.colors.emplace_back(utils::createColor(0, green_component, blue_component, 1));
     }
+    markers_.markers.emplace_back(std::move(marker));
   }
 }
 
 void TrajectoryVisualizer::reset()
 {
-  marker_id_ = 0;
-  points_ = visualization_msgs::MarkerArray();
+  markers_ = visualization_msgs::MarkerArray();
 }
 
 void TrajectoryVisualizer::visualize(const nav_msgs::Path& plan)
 {
   if (trajectory_publisher_.getNumSubscribers() > 0)
   {
-    trajectory_publisher_.publish(std::move(points_));
+    trajectory_publisher_.publish(std::move(markers_));
   }
 
   reset();

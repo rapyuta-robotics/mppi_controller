@@ -102,16 +102,13 @@ inline std_msgs::ColorRGBA createColor(float r, float g, float b, float a)
 }
 
 /**
- * @brief Convert data into a Maarker
+ * @brief Create a visual Marker to show a trajectory
  * @param id Marker ID
- * @param pose Marker pose
  * @param scale Marker scale
- * @param color Marker color
  * @param frame Reference frame to use
  * @return Visualization Marker
  */
-inline visualization_msgs::Marker createMarker(int id, const geometry_msgs::Pose& pose,
-                                               const geometry_msgs::Vector3& scale, const std_msgs::ColorRGBA& color,
+inline visualization_msgs::Marker createMarker(int id, const geometry_msgs::Vector3& scale,
                                                const std::string& frame_id, const std::string& ns)
 {
   using visualization_msgs::Marker;
@@ -120,12 +117,10 @@ inline visualization_msgs::Marker createMarker(int id, const geometry_msgs::Pose
   marker.header.stamp = ros::Time(0, 0);
   marker.ns = ns;
   marker.id = id;
-  marker.type = Marker::SPHERE;
+  marker.type = Marker::LINE_STRIP;
   marker.action = Marker::ADD;
-
-  marker.pose = pose;
+  marker.pose = createPose(0, 0, 0);
   marker.scale = scale;
-  marker.color = color;
   return marker;
 }
 

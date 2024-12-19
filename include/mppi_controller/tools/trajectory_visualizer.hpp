@@ -78,8 +78,7 @@ protected:
   ros::Publisher trajectory_publisher_;
   ros::Publisher transformed_path_pub_;
 
-  visualization_msgs::MarkerArray points_;
-  int marker_id_ = 0;
+  visualization_msgs::MarkerArray markers_;
 
   std::atomic<int> trajectory_step_{ 0 };
   std::atomic<int> time_step_{ 0 };

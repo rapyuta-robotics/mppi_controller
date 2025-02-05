@@ -17,7 +17,6 @@
 #define MPPI_CONTROLLER__MOTION_MODELS_HPP_
 
 #include <cstdint>
-#include <string>
 #include <xtensor/xmasked_view.hpp>
 #include <xtensor/xmath.hpp>
 #include <xtensor/xnoalias.hpp>

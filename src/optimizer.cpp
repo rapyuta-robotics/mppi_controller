@@ -431,24 +431,21 @@ void Optimizer::setMotionModel(const int model)
   {
     case mppi_controller::MPPIController_DiffDrive:
       motion_model_ = std::make_shared<DiffDriveMotionModel>();
-      motion_model_->initialize(settings_.constraints, settings_.model_dt);
       break;
     case mppi_controller::MPPIController_Omni:
       motion_model_ = std::make_shared<OmniMotionModel>();
-      motion_model_->initialize(settings_.constraints, settings_.model_dt);
       break;
     case mppi_controller::MPPIController_Ackermann:
       motion_model_ = std::make_shared<AckermannMotionModel>(parent_nh_);
-      motion_model_->initialize(settings_.constraints, settings_.model_dt);
       break;
     default:
       ROS_WARN_NAMED("Optimizer",
                      "Model %d is not valid! Valid options are DiffDrive, Omni, or Ackermann; defaulting to DiffDrive",
                      model);
       motion_model_ = std::make_shared<DiffDriveMotionModel>();
-      motion_model_->initialize(settings_.constraints, settings_.model_dt);
       break;
   }
+  motion_model_->initialize(settings_.constraints, settings_.model_dt);
   is_holonomic_ = motion_model_->isHolonomic();
 }
 

@@ -75,18 +75,18 @@ class MotionModel {
       float vy_last = state.vy(i, 0);
       float wz_last = state.wz(i, 0);
       for (unsigned int j = 1; j != state.vx.shape(1); j++) {
-        double cvx_curr = state.cvx(i, j - 1);
+        double & cvx_curr = state.cvx(i, j - 1);
         cvx_curr = std::clamp(cvx_curr, vx_last + min_delta_vx, vx_last + max_delta_vx);
         state.vx(i, j) = cvx_curr;
         vx_last = cvx_curr;
 
-        double cwz_curr = state.cwz(i, j - 1);
+        double & cwz_curr = state.cwz(i, j - 1);
         cwz_curr = std::clamp(cwz_curr, wz_last - max_delta_wz, wz_last + max_delta_wz);
         state.wz(i, j) = cwz_curr;
         wz_last = cwz_curr;
 
         if (is_holo) {
-          double cvy_curr = state.cvy(i, j - 1);
+          double & cvy_curr = state.cvy(i, j - 1);
           cvy_curr = std::clamp(cvy_curr, vy_last - max_delta_vy, vy_last + max_delta_vy);
           state.vy(i, j) = cvy_curr;
           vy_last = cvy_curr;

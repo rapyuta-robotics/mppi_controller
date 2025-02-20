@@ -239,7 +239,9 @@ void Optimizer::applyControlSequenceConstraints()
 
   control_sequence_.vx = xt::clip(control_sequence_.vx, s.constraints.vx_min, s.constraints.vx_max);
   control_sequence_.wz = xt::clip(control_sequence_.wz, -s.constraints.wz, s.constraints.wz);
-  float max_vel_trans = s.constraints.max_vel_trans; // New constraint
+
+  //max_vel_trans constraint
+  float max_vel_trans = s.constraints.max_vel_trans;
   float vx_last = control_sequence_.vx(0);
   float vy_last = control_sequence_.vy(0);
   float wz_last = control_sequence_.wz(0);

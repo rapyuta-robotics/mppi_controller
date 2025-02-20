@@ -28,13 +28,13 @@ namespace mppi::models {
  * @brief State information: velocities, controls, poses, speed
  */
 struct State {
-  xt::xtensor<float, 2> vx;
-  xt::xtensor<float, 2> vy;
-  xt::xtensor<float, 2> wz;
+  xt::xtensor<double, 2> vx;
+  xt::xtensor<double, 2> vy;
+  xt::xtensor<double, 2> wz;
 
-  xt::xtensor<float, 2> cvx;
-  xt::xtensor<float, 2> cvy;
-  xt::xtensor<float, 2> cwz;
+  xt::xtensor<double, 2> cvx;
+  xt::xtensor<double, 2> cvy;
+  xt::xtensor<double, 2> cwz;
 
   geometry_msgs::PoseStamped pose;
   geometry_msgs::Twist speed;
@@ -43,13 +43,13 @@ struct State {
    * @brief Reset state data
    */
   void reset(unsigned int batch_size, unsigned int time_steps) {
-    vx = xt::zeros<float>({batch_size, time_steps});
-    vy = xt::zeros<float>({batch_size, time_steps});
-    wz = xt::zeros<float>({batch_size, time_steps});
+    vx = xt::zeros<double>({batch_size, time_steps});
+    vy = xt::zeros<double>({batch_size, time_steps});
+    wz = xt::zeros<double>({batch_size, time_steps});
 
-    cvx = xt::zeros<float>({batch_size, time_steps});
-    cvy = xt::zeros<float>({batch_size, time_steps});
-    cwz = xt::zeros<float>({batch_size, time_steps});
+    cvx = xt::zeros<double>({batch_size, time_steps});
+    cvy = xt::zeros<double>({batch_size, time_steps});
+    cwz = xt::zeros<double>({batch_size, time_steps});
   }
 };
 }  // namespace mppi::models

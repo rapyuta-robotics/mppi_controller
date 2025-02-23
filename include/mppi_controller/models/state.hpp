@@ -28,13 +28,13 @@ namespace mppi::models {
  * @brief State information: velocities, controls, poses, speed
  */
 struct State {
-  xt::xtensor<double, 2> vx;
-  xt::xtensor<double, 2> vy;
-  xt::xtensor<double, 2> wz;
+  xt::xtensor<double, 2, xt::layout_type::column_major> vx;
+  xt::xtensor<double, 2, xt::layout_type::column_major> vy;
+  xt::xtensor<double, 2, xt::layout_type::column_major> wz;
 
-  xt::xtensor<double, 2> cvx;
-  xt::xtensor<double, 2> cvy;
-  xt::xtensor<double, 2> cwz;
+  xt::xtensor<double, 2, xt::layout_type::column_major> cvx;
+  xt::xtensor<double, 2, xt::layout_type::column_major> cvy;
+  xt::xtensor<double, 2, xt::layout_type::column_major> cwz;
 
   geometry_msgs::PoseStamped pose;
   geometry_msgs::Twist speed;

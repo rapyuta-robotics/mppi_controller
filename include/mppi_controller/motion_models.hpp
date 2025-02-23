@@ -66,11 +66,13 @@ class MotionModel {
   virtual void predict(models::State& state) {
     const bool is_holo = isHolonomic();
     const double max_vel_trans = control_constraints_.max_vel_trans;
-    for (unsigned int i = 0; i != state.vx.shape(0); i++) {
-      float vx_last = state.vx(i, 0);
-      float vy_last = state.vy(i, 0);
-      float wz_last = state.wz(i, 0);
-      for (unsigned int j = 1; j != state.vx.shape(1); j++) {
+
+    for (unsigned int j = 1; j != state.vx.shape(1); j++) {
+      for (unsigned int i = 0; i != state.vx.shape(0); i++) {
+        float vx_last = state.vx(i, j - 1);
+        float vy_last = state.vy(i, j - 1);
+        float wz_last = state.wz(i, j - 1);
+
         double & cvx_curr = state.cvx(i, j - 1);
         state.vx(i, j) = cvx_curr;
         vx_last = cvx_curr;
@@ -84,11 +86,13 @@ class MotionModel {
           state.vy(i, j) = cvy_curr;
           vy_last = cvy_curr;
         }
+
         // Apply max_vel_trans constraint
         double current_vx = state.vx(i, j);
         double current_vy = state.vy(i, j);
         double speed_sq = current_vx * current_vx + current_vy * current_vy;
         const double max_vel_trans_sq = max_vel_trans * max_vel_trans;
+
         if (speed_sq > max_vel_trans_sq) {
           double speed = std::sqrt(speed_sq);
           double scale = max_vel_trans / speed;
@@ -103,6 +107,7 @@ class MotionModel {
       }
     }
   }
+
 
   /**
    * @brief Whether the motion model is holonomic, using Y axis

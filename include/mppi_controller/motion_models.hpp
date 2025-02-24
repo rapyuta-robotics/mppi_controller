@@ -68,11 +68,10 @@ class MotionModel {
     const double max_vel_trans = control_constraints_.max_vel_trans;
 
     for (unsigned int j = 1; j != state.vx.shape(1); j++) {
+      float vx_last = state.vx(0, j - 1);
+      float vy_last = state.vy(0, j - 1);
+      float wz_last = state.wz(0, j - 1);
       for (unsigned int i = 0; i != state.vx.shape(0); i++) {
-        float vx_last = state.vx(i, j - 1);
-        float vy_last = state.vy(i, j - 1);
-        float wz_last = state.wz(i, j - 1);
-
         double & cvx_curr = state.cvx(i, j - 1);
         state.vx(i, j) = cvx_curr;
         vx_last = cvx_curr;

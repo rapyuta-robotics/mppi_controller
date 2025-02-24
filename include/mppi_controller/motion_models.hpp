@@ -63,43 +63,44 @@ class MotionModel {
    * @param state Contains control velocities to use to populate vehicle
    * velocities
    */
-  virtual void predict(models::State& state) {
+  virtual void predict(models::State & state)
+  {
     const bool is_holo = isHolonomic();
+
+    unsigned int n_rows = state.vx.shape(0);
+    unsigned int n_cols = state.vx.shape(1);
     const double max_vel_trans = control_constraints_.max_vel_trans;
 
-    for (unsigned int j = 1; j != state.vx.shape(1); j++) {
-      float vx_last = state.vx(0, j - 1);
-      float vy_last = state.vy(0, j - 1);
-      float wz_last = state.wz(0, j - 1);
-      for (unsigned int i = 0; i != state.vx.shape(0); i++) {
-        double & cvx_curr = state.cvx(i, j - 1);
-        state.vx(i, j) = cvx_curr;
-        vx_last = cvx_curr;
+    for (unsigned int i = 1; i != n_cols; i++) {
+      for (unsigned int j = 0; j != n_rows; j++) {
+        double vx_last = state.vx(j, i - 1);
+        double vy_last = state.vx(j, i - 1);
 
-        double & cwz_curr = state.cwz(i, j - 1);
-        state.wz(i, j) = cwz_curr;
-        wz_last = cwz_curr;
+        double & cvx_curr = state.cvx(j, i - 1);
+        state.vx(j, i) = cvx_curr;
+
+        double wz_last = state.wz(j, i - 1);
+        double & cwz_curr = state.cwz(j, i - 1);
+        state.wz(j, i) = cwz_curr;
 
         if (is_holo) {
-          double & cvy_curr = state.cvy(i, j - 1);
-          state.vy(i, j) = cvy_curr;
-          vy_last = cvy_curr;
+          double vy_last = state.vy(j, i - 1);
+          double & cvy_curr = state.cvy(j, i - 1);
+          state.vy(j, i) = cvy_curr;
         }
-
         // Apply max_vel_trans constraint
-        double current_vx = state.vx(i, j);
-        double current_vy = state.vy(i, j);
+        double current_vx = state.vx(j, i);
+        double current_vy = state.vy(j, i);
         double speed_sq = current_vx * current_vx + current_vy * current_vy;
         const double max_vel_trans_sq = max_vel_trans * max_vel_trans;
-
         if (speed_sq > max_vel_trans_sq) {
           double speed = std::sqrt(speed_sq);
           double scale = max_vel_trans / speed;
           double new_vx = current_vx * scale;
           double new_vy = current_vy * scale;
 
-          state.vx(i, j) = new_vx;
-          state.vy(i, j) = new_vy;
+          state.vx(j, i) = new_vx;
+          state.vy(j, i) = new_vy;
           vx_last = new_vx;
           vy_last = new_vy;
         }

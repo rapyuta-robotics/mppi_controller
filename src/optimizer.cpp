@@ -63,6 +63,7 @@ void Optimizer::setParams(const mppi_controller::MPPIControllerConfig& config)
   s.base_constraints.vx_min = config.vx_min;
   s.base_constraints.vy = config.vy_max;
   s.base_constraints.wz = config.wz_max;
+  s.base_constraints.max_vel_trans = config.max_vel_trans;
   s.sampling_std.vx = config.vx_std;
   s.sampling_std.vy = config.vy_std;
   s.sampling_std.wz = config.wz_std;
@@ -238,6 +239,37 @@ void Optimizer::applyControlSequenceConstraints()
 
   control_sequence_.vx = xt::clip(control_sequence_.vx, s.constraints.vx_min, s.constraints.vx_max);
   control_sequence_.wz = xt::clip(control_sequence_.wz, -s.constraints.wz, s.constraints.wz);
+
+  //max_vel_trans constraint
+  float max_vel_trans = s.constraints.max_vel_trans;
+  float vx_last = control_sequence_.vx(0);
+  float vy_last = control_sequence_.vy(0);
+  float wz_last = control_sequence_.wz(0);
+
+  for (unsigned int i = 1; i != control_sequence_.vx.shape(0); i++) {
+    float & vx_curr = control_sequence_.vx(i);
+    vx_last = vx_curr;
+
+    float & wz_curr = control_sequence_.wz(i);
+    wz_last = wz_curr;
+
+    if (isHolonomic()) {
+      float & vy_curr = control_sequence_.vy(i);
+      vy_last = vy_curr;
+    }
+    // Apply max_vel_trans constraint
+    float current_vx = control_sequence_.vx(i);
+    float current_vy = control_sequence_.vy(i);
+    float speed_sq = current_vx * current_vx + current_vy * current_vy;
+    float max_vel_trans_sq = max_vel_trans * max_vel_trans;
+
+    if (speed_sq > max_vel_trans_sq) {
+      float speed = std::sqrt(speed_sq);
+      float scale = max_vel_trans / speed;
+      control_sequence_.vx(i) = current_vx * scale;
+      control_sequence_.vy(i) = current_vy * scale;
+    }
+  }
 
   motion_model_->applyConstraints(control_sequence_);
 }
@@ -418,6 +450,7 @@ void Optimizer::setMotionModel(const int model)
       motion_model_ = std::make_shared<DiffDriveMotionModel>();
       break;
   }
+  motion_model_->initialize(settings_.constraints, settings_.model_dt);
   is_holonomic_ = motion_model_->isHolonomic();
 }
 

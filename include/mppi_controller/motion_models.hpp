@@ -74,18 +74,18 @@ class MotionModel {
     for (unsigned int i = 1; i != n_cols; i++) {
       for (unsigned int j = 0; j != n_rows; j++) {
         double vx_last = state.vx(j, i - 1);
-        double vy_last = state.vx(j, i - 1);
+        double vy_last = state.vy(j, i - 1);
 
-        double & cvx_curr = state.cvx(j, i - 1);
+        double cvx_curr = state.cvx(j, i - 1);
         state.vx(j, i) = cvx_curr;
 
         double wz_last = state.wz(j, i - 1);
-        double & cwz_curr = state.cwz(j, i - 1);
+        double cwz_curr = state.cwz(j, i - 1);
         state.wz(j, i) = cwz_curr;
 
         if (is_holo) {
           double vy_last = state.vy(j, i - 1);
-          double & cvy_curr = state.cvy(j, i - 1);
+          double cvy_curr = state.cvy(j, i - 1);
           state.vy(j, i) = cvy_curr;
         }
         // Apply max_vel_trans constraint

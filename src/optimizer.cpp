@@ -247,18 +247,15 @@ void Optimizer::applyControlSequenceConstraints()
   float wz_last = control_sequence_.wz(0);
 
   for (unsigned int i = 1; i != control_sequence_.vx.shape(0); i++) {
-    float & vx_curr = control_sequence_.vx(i);
-    float & vy_curr = control_sequence_.vy(i);
+    float vx_curr = control_sequence_.vx(i);
+    float vy_curr = control_sequence_.vy(i);
 
     vx_last = vx_curr;
+    vy_last = vy_curr;
 
-    float & wz_curr = control_sequence_.wz(i);
+    float wz_curr = control_sequence_.wz(i);
     wz_last = wz_curr;
 
-    if (isHolonomic()) {
-      float & vy_curr = control_sequence_.vy(i);
-      vy_last = vy_curr;
-    }
     // Apply max_vel_trans constraint
     float speed = std::hypot(vx_curr, vy_curr);
 

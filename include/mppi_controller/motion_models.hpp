@@ -89,15 +89,11 @@ class MotionModel {
           state.vy(j, i) = cvy_curr;
         }
         // Apply max_vel_trans constraint
-        double current_vx = state.vx(j, i);
-        double current_vy = state.vy(j, i);
-        double speed_sq = current_vx * current_vx + current_vy * current_vy;
-        const double max_vel_trans_sq = max_vel_trans * max_vel_trans;
-        if (speed_sq > max_vel_trans_sq) {
-          double speed = std::sqrt(speed_sq);
+        double speed = std::hypot(cvx_curr, state.vy(j, i));
+        if (speed > max_vel_trans) {
           double scale = max_vel_trans / speed;
-          double new_vx = current_vx * scale;
-          double new_vy = current_vy * scale;
+          double new_vx = cvx_curr * scale;
+          double new_vy = state.vy(j, i) * scale;
 
           state.vx(j, i) = new_vx;
           state.vy(j, i) = new_vy;

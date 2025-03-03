@@ -248,6 +248,8 @@ void Optimizer::applyControlSequenceConstraints()
 
   for (unsigned int i = 1; i != control_sequence_.vx.shape(0); i++) {
     float & vx_curr = control_sequence_.vx(i);
+    float & vy_curr = control_sequence_.vy(i);
+
     vx_last = vx_curr;
 
     float & wz_curr = control_sequence_.wz(i);
@@ -258,16 +260,12 @@ void Optimizer::applyControlSequenceConstraints()
       vy_last = vy_curr;
     }
     // Apply max_vel_trans constraint
-    float current_vx = control_sequence_.vx(i);
-    float current_vy = control_sequence_.vy(i);
-    float speed_sq = current_vx * current_vx + current_vy * current_vy;
-    float max_vel_trans_sq = max_vel_trans * max_vel_trans;
+    float speed = std::hypot(vx_curr, vy_curr);
 
-    if (speed_sq > max_vel_trans_sq) {
-      float speed = std::sqrt(speed_sq);
+    if (speed > max_vel_trans) {
       float scale = max_vel_trans / speed;
-      control_sequence_.vx(i) = current_vx * scale;
-      control_sequence_.vy(i) = current_vy * scale;
+      control_sequence_.vx(i) = vx_curr * scale;
+      control_sequence_.vy(i) = vy_curr * scale;
     }
   }
 

@@ -73,29 +73,19 @@ class MotionModel {
 
     for (unsigned int i = 1; i != n_cols; i++) {
       for (unsigned int j = 0; j != n_rows; j++) {
-        double vx_last = state.vx(j, i - 1);
         double cvx_curr = state.cvx(j, i - 1);
-        state.vx(j, i) = cvx_curr;
-
-        double wz_last = state.wz(j, i - 1);
         double cwz_curr = state.cwz(j, i - 1);
-        state.wz(j, i) = cwz_curr;
-
-        double vy_last = state.vy(j, i - 1);
         double cvy_curr = state.cvy(j, i - 1);
+        state.vx(j, i) = cvx_curr;
+        state.wz(j, i) = cwz_curr;
         state.vy(j, i) = cvy_curr;
 
         // Apply max_vel_trans constraint
         double speed = std::hypot(cvx_curr, state.vy(j, i));
         if (speed > max_vel_trans) {
           double scale = max_vel_trans / speed;
-          double new_vx = cvx_curr * scale;
-          double new_vy = cvx_curr * scale;
-
-          state.vx(j, i) = new_vx;
-          state.vy(j, i) = new_vy;
-          vx_last = new_vx;
-          vy_last = new_vy;
+          state.vx(j, i) = cvx_curr * scale;
+          state.vy(j, i) = cvy_curr * scale;
         }
       }
     }

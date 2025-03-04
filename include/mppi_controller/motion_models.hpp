@@ -21,12 +21,13 @@
 #include <xtensor/xmath.hpp>
 #include <xtensor/xnoalias.hpp>
 #include <xtensor/xview.hpp>
-
+#include <cmath>
 #include <dynamic_reconfigure/server.h>
 
 #include "mppi_controller/AckermannConfig.h"
 #include "mppi_controller/models/control_sequence.hpp"
 #include "mppi_controller/models/state.hpp"
+#include "mppi_controller/models/constraints.hpp"
 
 namespace mppi {
 
@@ -47,23 +48,49 @@ class MotionModel {
   virtual ~MotionModel() = default;
 
   /**
+    * @brief Initialize motion model on bringup and set required variables
+    * @param control_constraints Constraints on control
+    * @param model_dt duration of a time step
+    */
+  void initialize(const models::ControlConstraints & control_constraints, float model_dt)
+  {
+    control_constraints_ = control_constraints;
+    model_dt_ = model_dt;
+  }
+
+  /**
    * @brief With input velocities, find the vehicle's output velocities
    * @param state Contains control velocities to use to populate vehicle
    * velocities
    */
-  virtual void predict(models::State& state) {
-    using namespace xt::placeholders;  // NOLINT
-    xt::noalias(xt::view(state.vx, xt::all(), xt::range(1, _))) =
-        xt::view(state.cvx, xt::all(), xt::range(0, -1));
+  virtual void predict(models::State & state)
+  {
+    const bool is_holo = isHolonomic();
 
-    xt::noalias(xt::view(state.wz, xt::all(), xt::range(1, _))) =
-        xt::view(state.cwz, xt::all(), xt::range(0, -1));
+    unsigned int n_rows = state.vx.shape(0);
+    unsigned int n_cols = state.vx.shape(1);
+    const double max_vel_trans = control_constraints_.max_vel_trans;
 
-    if (isHolonomic()) {
-      xt::noalias(xt::view(state.vy, xt::all(), xt::range(1, _))) =
-          xt::view(state.cvy, xt::all(), xt::range(0, -1));
+    for (unsigned int i = 1; i != n_cols; i++) {
+      for (unsigned int j = 0; j != n_rows; j++) {
+        double cvx_curr = state.cvx(j, i - 1);
+        double cwz_curr = state.cwz(j, i - 1);
+        double cvy_curr = state.cvy(j, i - 1);
+        state.vx(j, i) = cvx_curr;
+        state.wz(j, i) = cwz_curr;
+        state.vy(j, i) = cvy_curr;
+
+        // Apply max_vel_trans constraint
+        double speed = std::hypot(cvx_curr, state.vy(j, i));
+        if (speed > max_vel_trans) {
+          double scale = max_vel_trans / speed;
+          state.vx(j, i) = cvx_curr * scale;
+          state.vy(j, i) = cvy_curr * scale;
+        }
+      }
     }
   }
+
 
   /**
    * @brief Whether the motion model is holonomic, using Y axis
@@ -71,12 +98,17 @@ class MotionModel {
    */
   virtual bool isHolonomic() = 0;
 
+
   /**
    * @brief Apply hard vehicle constraints to a control sequence
    * @param control_sequence Control sequence to apply constraints to
    */
   virtual void applyConstraints(models::ControlSequence& /*control_sequence*/) {
   }
+
+  protected:
+    float model_dt_{0.0};
+  models::ControlConstraints control_constraints_{0.0f, 0.0f, 0.0f, 0.0f};
 };
 
 /**

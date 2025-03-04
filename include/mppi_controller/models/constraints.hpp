@@ -28,6 +28,7 @@ struct ControlConstraints
   double vx_min;
   double vy;
   double wz;
+  double max_vel_trans;
 };
 
 /**

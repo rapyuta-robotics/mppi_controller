@@ -98,12 +98,17 @@ class MotionModel {
         wz_last = cwz_curr;
 
         if (is_holo) {
+          vy_last = std::clamp(vy_last, -control_constraints_.vy, control_constraints_.vy);
+          state.vy(i, j - 1) = vy_last;
+
           float cvy_curr = state.cvy(i, j - 1);
+          cvy_curr = std::clamp(cvy_curr, -control_constraints_.vy, control_constraints_.vy);
           if (vy_last > 0.0f) {
             cvy_curr = std::clamp(cvy_curr, vy_last + min_delta_vy, vy_last + max_delta_vy);
           } else {
             cvy_curr = std::clamp(cvy_curr, vy_last - max_delta_vy, vy_last - min_delta_vy);
           }
+          cvy_curr = std::clamp(cvy_curr, -control_constraints_.vy, control_constraints_.vy);
           state.vy(i, j) = cvy_curr;
           vy_last = cvy_curr;
         } else {
@@ -120,7 +125,9 @@ class MotionModel {
             vx_last = cvx_curr;
 
             if (is_holo) {
-              state.vy(i, j) = state.vy(i, j) * scale;
+              state.vy(i, j) = std::clamp(
+                static_cast<float>(state.vy(i, j)) * scale,
+                -control_constraints_.vy, control_constraints_.vy);
               vy_last = static_cast<float>(state.vy(i, j));
             }
           }

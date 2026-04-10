@@ -68,6 +68,8 @@ class MotionModel {
     const bool is_holo = isHolonomic();
     const float vx_min = static_cast<float>(control_constraints_.vx_min);
     const float vx_max = static_cast<float>(control_constraints_.vx_max);
+    const float wz_min = -static_cast<float>(control_constraints_.wz);
+    const float wz_max = static_cast<float>(control_constraints_.wz);
     float max_delta_vx = model_dt_ * control_constraints_.ax_max;
     float min_delta_vx = model_dt_ * control_constraints_.ax_min;
     float max_delta_vy = model_dt_ * control_constraints_.ay_max;
@@ -79,7 +81,8 @@ class MotionModel {
       float vx_last = std::clamp(static_cast<float>(state.vx(i, 0)), vx_min, vx_max);
       state.vx(i, 0) = vx_last;
       float vy_last = state.vy(i, 0);
-      float wz_last = state.wz(i, 0);
+      float wz_last = std::clamp(static_cast<float>(state.wz(i, 0)), wz_min, wz_max);
+      state.wz(i, 0) = wz_last;
       for (unsigned int j = 1; j != state.vx.shape(1); j++) {
         float cvx_curr = state.cvx(i, j - 1);
         cvx_curr = std::clamp(cvx_curr, vx_min, vx_max);
@@ -94,6 +97,7 @@ class MotionModel {
 
         float cwz_curr = state.cwz(i, j - 1);
         cwz_curr = std::clamp(cwz_curr, wz_last - max_delta_wz, wz_last + max_delta_wz);
+        cwz_curr = std::clamp(cwz_curr, wz_min, wz_max);
         state.wz(i, j) = cwz_curr;
         wz_last = cwz_curr;
 

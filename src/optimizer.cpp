@@ -21,6 +21,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <algorithm>
 #include <cmath>
 #include <xtensor/xmath.hpp>
 #include <xtensor/xrandom.hpp>
@@ -61,9 +62,22 @@ void Optimizer::setParams(const mppi_controller::MPPIControllerConfig& config)
   s.retry_attempt_limit = config.retry_attempt_limit;
   s.base_constraints.vx_max = config.vx_max;
   s.base_constraints.vx_min = config.vx_min;
+  s.base_constraints.ax_max = config.ax_max;
+  s.base_constraints.ax_min = config.ax_min;
+  s.base_constraints.ay_min = config.ay_min;
+  s.base_constraints.ay_max = config.ay_max;
+  s.base_constraints.az_max = config.az_max;
   s.base_constraints.vy = config.vy_max;
   s.base_constraints.wz = config.wz_max;
   s.base_constraints.max_vel_trans = config.max_vel_trans;
+  s.base_constraints.ax_max = std::fabs(s.base_constraints.ax_max);
+  if (s.base_constraints.ax_min > 0.0) {
+    s.base_constraints.ax_min = -s.base_constraints.ax_min;
+  }
+  s.base_constraints.ay_max = std::fabs(s.base_constraints.ay_max);
+  if (s.base_constraints.ay_min > 0.0) {
+    s.base_constraints.ay_min = -s.base_constraints.ay_min;
+  }
   s.sampling_std.vx = config.vx_std;
   s.sampling_std.vy = config.vy_std;
   s.sampling_std.wz = config.wz_std;
@@ -232,29 +246,67 @@ void Optimizer::applyControlSequenceConstraints()
 {
   auto& s = settings_;
 
-  if (isHolonomic())
-  {
-    control_sequence_.vy = xt::clip(control_sequence_.vy, -s.constraints.vy, s.constraints.vy);
+  float max_delta_vx = s.model_dt * s.constraints.ax_max;
+  float min_delta_vx = s.model_dt * s.constraints.ax_min;
+  float max_delta_vy = s.model_dt * s.constraints.ay_max;
+  float min_delta_vy = s.model_dt * s.constraints.ay_min;
+  float max_delta_wz = s.model_dt * s.constraints.az_max;
+
+  float vx_last = std::clamp(control_sequence_.vx(0), static_cast<float>(s.constraints.vx_min),
+                             static_cast<float>(s.constraints.vx_max));
+  float wz_last = std::clamp(control_sequence_.wz(0), static_cast<float>(-s.constraints.wz),
+                             static_cast<float>(s.constraints.wz));
+  control_sequence_.vx(0) = vx_last;
+  control_sequence_.wz(0) = wz_last;
+
+  float vy_last = 0.0f;
+  if (isHolonomic()) {
+    vy_last = std::clamp(control_sequence_.vy(0), static_cast<float>(-s.constraints.vy),
+                         static_cast<float>(s.constraints.vy));
+    control_sequence_.vy(0) = vy_last;
   }
 
-  control_sequence_.vx = xt::clip(control_sequence_.vx, s.constraints.vx_min, s.constraints.vx_max);
-  control_sequence_.wz = xt::clip(control_sequence_.wz, -s.constraints.wz, s.constraints.wz);
-
-  //max_vel_trans constraint
-  float max_vel_trans = s.constraints.max_vel_trans;
-
   for (unsigned int i = 1; i != control_sequence_.vx.shape(0); i++) {
-    float vx_curr = control_sequence_.vx(i);
-    float vy_curr = control_sequence_.vy(i);
-    float wz_curr = control_sequence_.wz(i);
+    float & vx_curr = control_sequence_.vx(i);
+    vx_curr = std::clamp(vx_curr, static_cast<float>(s.constraints.vx_min), static_cast<float>(s.constraints.vx_max));
+    if (vx_last > 0.0f) {
+      vx_curr = std::clamp(vx_curr, vx_last + min_delta_vx, vx_last + max_delta_vx);
+    } else {
+      vx_curr = std::clamp(vx_curr, vx_last - max_delta_vx, vx_last - min_delta_vx);
+    }
 
-    // Apply max_vel_trans constraint
-    float speed = std::hypot(vx_curr, vy_curr);
+    float & wz_curr = control_sequence_.wz(i);
+    wz_curr = std::clamp(wz_curr, static_cast<float>(-s.constraints.wz), static_cast<float>(s.constraints.wz));
+    wz_curr = std::clamp(wz_curr, wz_last - max_delta_wz, wz_last + max_delta_wz);
+    wz_last = wz_curr;
 
-    if (speed > max_vel_trans) {
-      float scale = max_vel_trans / speed;
-      control_sequence_.vx(i) = vx_curr * scale;
-      control_sequence_.vy(i) = vy_curr * scale;
+    float vy_for_limit = 0.0f;
+    if (isHolonomic()) {
+      float & vy_curr = control_sequence_.vy(i);
+      vy_curr = std::clamp(vy_curr, static_cast<float>(-s.constraints.vy), static_cast<float>(s.constraints.vy));
+      if (vy_last > 0.0f) {
+        vy_curr = std::clamp(vy_curr, vy_last + min_delta_vy, vy_last + max_delta_vy);
+      } else {
+        vy_curr = std::clamp(vy_curr, vy_last - max_delta_vy, vy_last - min_delta_vy);
+      }
+      vy_for_limit = vy_curr;
+    }
+
+    if (s.constraints.max_vel_trans > 0.0f) {
+      const float speed = std::hypot(vx_curr, vy_for_limit);
+      if (speed > s.constraints.max_vel_trans) {
+        const float scale = s.constraints.max_vel_trans / speed;
+        vx_curr *= scale;
+        if (isHolonomic()) {
+          control_sequence_.vy(i) *= scale;
+          vy_for_limit = control_sequence_.vy(i);
+        }
+      }
+    }
+
+    vx_last = vx_curr;
+    if (isHolonomic()) {
+      vy_last = vy_for_limit;
     }
   }
 

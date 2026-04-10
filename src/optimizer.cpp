@@ -274,7 +274,6 @@ void Optimizer::applyControlSequenceConstraints()
     } else {
       vx_curr = std::clamp(vx_curr, vx_last - max_delta_vx, vx_last - min_delta_vx);
     }
-    vx_last = vx_curr;
 
     float & wz_curr = control_sequence_.wz(i);
     wz_curr = std::clamp(wz_curr, static_cast<float>(-s.constraints.wz), static_cast<float>(s.constraints.wz));
@@ -299,7 +298,10 @@ void Optimizer::applyControlSequenceConstraints()
         }
       }
 
+      vx_last = vx_curr;
       vy_last = vy_curr;
+    } else {
+      vx_last = vx_curr;
     }
   }
 

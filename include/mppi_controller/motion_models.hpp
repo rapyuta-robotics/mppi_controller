@@ -66,6 +66,8 @@ class MotionModel {
    */
   virtual void predict(models::State& state) {
     const bool is_holo = isHolonomic();
+    const float vx_min = static_cast<float>(control_constraints_.vx_min);
+    const float vx_max = static_cast<float>(control_constraints_.vx_max);
     float max_delta_vx = model_dt_ * control_constraints_.ax_max;
     float min_delta_vx = model_dt_ * control_constraints_.ax_min;
     float max_delta_vy = model_dt_ * control_constraints_.ay_max;
@@ -74,16 +76,19 @@ class MotionModel {
     float max_vel_trans = control_constraints_.max_vel_trans;
 
     for (unsigned int i = 0; i != state.vx.shape(0); i++) {
-      float vx_last = state.vx(i, 0);
+      float vx_last = std::clamp(static_cast<float>(state.vx(i, 0)), vx_min, vx_max);
+      state.vx(i, 0) = vx_last;
       float vy_last = state.vy(i, 0);
       float wz_last = state.wz(i, 0);
       for (unsigned int j = 1; j != state.vx.shape(1); j++) {
         float cvx_curr = state.cvx(i, j - 1);
+        cvx_curr = std::clamp(cvx_curr, vx_min, vx_max);
         if (vx_last > 0.0f) {
           cvx_curr = std::clamp(cvx_curr, vx_last + min_delta_vx, vx_last + max_delta_vx);
         } else {
           cvx_curr = std::clamp(cvx_curr, vx_last - max_delta_vx, vx_last - min_delta_vx);
         }
+        cvx_curr = std::clamp(cvx_curr, vx_min, vx_max);
         state.vx(i, j) = cvx_curr;
         vx_last = cvx_curr;
 
@@ -99,22 +104,26 @@ class MotionModel {
           } else {
             cvy_curr = std::clamp(cvy_curr, vy_last - max_delta_vy, vy_last - min_delta_vy);
           }
-
-          if (max_vel_trans > 0.0f) {
-            const float speed = std::hypot(cvx_curr, cvy_curr);
-            if (speed > max_vel_trans) {
-              const float scale = max_vel_trans / speed;
-              cvx_curr *= scale;
-              cvy_curr *= scale;
-              state.vx(i, j) = cvx_curr;
-              vx_last = cvx_curr;
-            }
-          }
-
           state.vy(i, j) = cvy_curr;
           vy_last = cvy_curr;
         } else {
           state.vy(i, j) = 0.0f;
+        }
+        if (max_vel_trans > 0.0f) {
+          const float vy_for_speed = is_holo ? static_cast<float>(state.vy(i, j)) : 0.0f;
+          const float speed = std::hypot(cvx_curr, vy_for_speed);
+          if (speed > max_vel_trans) {
+            const float scale = max_vel_trans / speed;
+            cvx_curr *= scale;
+            cvx_curr = std::clamp(cvx_curr, vx_min, vx_max);
+            state.vx(i, j) = cvx_curr;
+            vx_last = cvx_curr;
+
+            if (is_holo) {
+              state.vy(i, j) = state.vy(i, j) * scale;
+              vy_last = static_cast<float>(state.vy(i, j));
+            }
+          }
         }
       }
     }

@@ -30,6 +30,7 @@ struct ControlConstraints
   double wz;
   double ax_max;
   double ax_min;
+  double ay_min;
   double ay_max;
   double az_max;
   double max_vel_trans;

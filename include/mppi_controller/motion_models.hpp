@@ -69,6 +69,7 @@ class MotionModel {
     float max_delta_vx = model_dt_ * control_constraints_.ax_max;
     float min_delta_vx = model_dt_ * control_constraints_.ax_min;
     float max_delta_vy = model_dt_ * control_constraints_.ay_max;
+    float min_delta_vy = model_dt_ * control_constraints_.ay_min;
     float max_delta_wz = model_dt_ * control_constraints_.az_max;
     float max_vel_trans = control_constraints_.max_vel_trans;
 
@@ -78,7 +79,11 @@ class MotionModel {
       float wz_last = state.wz(i, 0);
       for (unsigned int j = 1; j != state.vx.shape(1); j++) {
         float cvx_curr = state.cvx(i, j - 1);
-        cvx_curr = std::clamp(cvx_curr, vx_last + min_delta_vx, vx_last + max_delta_vx);
+        if (vx_last > 0.0f) {
+          cvx_curr = std::clamp(cvx_curr, vx_last + min_delta_vx, vx_last + max_delta_vx);
+        } else {
+          cvx_curr = std::clamp(cvx_curr, vx_last - max_delta_vx, vx_last - min_delta_vx);
+        }
         state.vx(i, j) = cvx_curr;
         vx_last = cvx_curr;
 
@@ -89,7 +94,11 @@ class MotionModel {
 
         if (is_holo) {
           float cvy_curr = state.cvy(i, j - 1);
-          cvy_curr = std::clamp(cvy_curr, vy_last - max_delta_vy, vy_last + max_delta_vy);
+          if (vy_last > 0.0f) {
+            cvy_curr = std::clamp(cvy_curr, vy_last + min_delta_vy, vy_last + max_delta_vy);
+          } else {
+            cvy_curr = std::clamp(cvy_curr, vy_last - max_delta_vy, vy_last - min_delta_vy);
+          }
 
           if (max_vel_trans > 0.0f) {
             const float speed = std::hypot(cvx_curr, cvy_curr);
@@ -129,7 +138,7 @@ class MotionModel {
   protected:
     float model_dt_{0.0};
   models::ControlConstraints control_constraints_{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-    0.0f};
+    0.0f, 0.0f};
 };
 
 /**

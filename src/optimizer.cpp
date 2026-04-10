@@ -21,6 +21,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <algorithm>
 #include <cmath>
 #include <xtensor/xmath.hpp>
 #include <xtensor/xrandom.hpp>
@@ -67,6 +68,7 @@ void Optimizer::setParams(const mppi_controller::MPPIControllerConfig& config)
   s.base_constraints.az_max = config.az_max;
   s.base_constraints.vy = config.vy_max;
   s.base_constraints.wz = config.wz_max;
+  s.base_constraints.max_vel_trans = config.max_vel_trans;
   s.sampling_std.vx = config.vx_std;
   s.sampling_std.vy = config.vy_std;
   s.sampling_std.wz = config.wz_std;
@@ -262,6 +264,16 @@ void Optimizer::applyControlSequenceConstraints()
     if (isHolonomic()) {
       float & vy_curr = control_sequence_.vy(i);
       vy_curr = std::clamp(vy_curr, vy_last - max_delta_vy, vy_last + max_delta_vy);
+
+      if (s.constraints.max_vel_trans > 0.0f) {
+        const float speed = std::hypot(vx_curr, vy_curr);
+        if (speed > s.constraints.max_vel_trans) {
+          const float scale = s.constraints.max_vel_trans / speed;
+          vx_curr *= scale;
+          vy_curr *= scale;
+        }
+      }
+
       vy_last = vy_curr;
     }
   }

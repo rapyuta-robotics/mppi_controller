@@ -21,7 +21,8 @@
 #include <xtensor/xmath.hpp>
 #include <xtensor/xnoalias.hpp>
 #include <xtensor/xview.hpp>
-
+#include <algorithm>
+#include <cmath>
 #include <dynamic_reconfigure/server.h>
 
 #include "mppi_controller/AckermannConfig.h"
@@ -65,35 +66,51 @@ class MotionModel {
    */
   virtual void predict(models::State& state) {
     const bool is_holo = isHolonomic();
-    double max_delta_vx = model_dt_ * control_constraints_.ax_max;
-    double min_delta_vx = model_dt_ * control_constraints_.ax_min;
-    double max_delta_vy = model_dt_ * control_constraints_.ay_max;
-    double max_delta_wz = model_dt_ * control_constraints_.az_max;
+    float max_delta_vx = model_dt_ * control_constraints_.ax_max;
+    float min_delta_vx = model_dt_ * control_constraints_.ax_min;
+    float max_delta_vy = model_dt_ * control_constraints_.ay_max;
+    float max_delta_wz = model_dt_ * control_constraints_.az_max;
+    float max_vel_trans = control_constraints_.max_vel_trans;
 
     for (unsigned int i = 0; i != state.vx.shape(0); i++) {
       float vx_last = state.vx(i, 0);
       float vy_last = state.vy(i, 0);
       float wz_last = state.wz(i, 0);
       for (unsigned int j = 1; j != state.vx.shape(1); j++) {
-        double & cvx_curr = state.cvx(i, j - 1);
+        float cvx_curr = state.cvx(i, j - 1);
         cvx_curr = std::clamp(cvx_curr, vx_last + min_delta_vx, vx_last + max_delta_vx);
         state.vx(i, j) = cvx_curr;
         vx_last = cvx_curr;
 
-        double & cwz_curr = state.cwz(i, j - 1);
+        float cwz_curr = state.cwz(i, j - 1);
         cwz_curr = std::clamp(cwz_curr, wz_last - max_delta_wz, wz_last + max_delta_wz);
         state.wz(i, j) = cwz_curr;
         wz_last = cwz_curr;
 
         if (is_holo) {
-          double & cvy_curr = state.cvy(i, j - 1);
+          float cvy_curr = state.cvy(i, j - 1);
           cvy_curr = std::clamp(cvy_curr, vy_last - max_delta_vy, vy_last + max_delta_vy);
+
+          if (max_vel_trans > 0.0f) {
+            const float speed = std::hypot(cvx_curr, cvy_curr);
+            if (speed > max_vel_trans) {
+              const float scale = max_vel_trans / speed;
+              cvx_curr *= scale;
+              cvy_curr *= scale;
+              state.vx(i, j) = cvx_curr;
+              vx_last = cvx_curr;
+            }
+          }
+
           state.vy(i, j) = cvy_curr;
           vy_last = cvy_curr;
+        } else {
+          state.vy(i, j) = 0.0f;
         }
       }
     }
   }
+
 
   /**
    * @brief Whether the motion model is holonomic, using Y axis
@@ -111,7 +128,7 @@ class MotionModel {
 
   protected:
     float model_dt_{0.0};
-  models::ControlConstraints control_constraints_{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+  models::ControlConstraints control_constraints_{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
     0.0f};
 };
 

@@ -68,8 +68,6 @@ class MotionModel {
     const bool is_holo = isHolonomic();
     const float vx_min = static_cast<float>(control_constraints_.vx_min);
     const float vx_max = static_cast<float>(control_constraints_.vx_max);
-    const float vy_min = -static_cast<float>(control_constraints_.vy);
-    const float vy_max = static_cast<float>(control_constraints_.vy);
     const float wz_min = -static_cast<float>(control_constraints_.wz);
     const float wz_max = static_cast<float>(control_constraints_.wz);
     float max_delta_vx = model_dt_ * control_constraints_.ax_max;
@@ -104,17 +102,17 @@ class MotionModel {
         wz_last = cwz_curr;
 
         if (is_holo) {
-          vy_last = std::clamp(vy_last, vy_min, vy_max);
+          vy_last = std::clamp(vy_last, -control_constraints_.vy, control_constraints_.vy);
           state.vy(i, j - 1) = vy_last;
 
           float cvy_curr = state.cvy(i, j - 1);
-          cvy_curr = std::clamp(cvy_curr, vy_min, vy_max);
+          cvy_curr = std::clamp(cvy_curr, -control_constraints_.vy, control_constraints_.vy);
           if (vy_last > 0.0f) {
             cvy_curr = std::clamp(cvy_curr, vy_last + min_delta_vy, vy_last + max_delta_vy);
           } else {
             cvy_curr = std::clamp(cvy_curr, vy_last - max_delta_vy, vy_last - min_delta_vy);
           }
-          cvy_curr = std::clamp(cvy_curr, vy_min, vy_max);
+          cvy_curr = std::clamp(cvy_curr, -control_constraints_.vy, control_constraints_.vy);
           state.vy(i, j) = cvy_curr;
           vy_last = cvy_curr;
         } else {
@@ -133,7 +131,7 @@ class MotionModel {
             if (is_holo) {
               state.vy(i, j) = std::clamp(
                 static_cast<float>(state.vy(i, j)) * scale,
-                vy_min, vy_max);
+                -control_constraints_.vy, control_constraints_.vy);
               vy_last = static_cast<float>(state.vy(i, j));
             }
           }

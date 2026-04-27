@@ -59,7 +59,7 @@ public:
 
     ros::NodeHandle validator_nh(parent_nh, name_);
     validator_nh.param("collision_lookahead_time", collision_lookahead_time_, 2.0);
-    validator_nh.param("consider_footprint", consider_footprint_, false);
+    validator_nh.param("consider_footprint", consider_footprint_, true);
 
     traj_samples_to_evaluate_ = static_cast<unsigned int>(collision_lookahead_time_ / settings.model_dt);
     if (traj_samples_to_evaluate_ > static_cast<unsigned int>(settings.time_steps))

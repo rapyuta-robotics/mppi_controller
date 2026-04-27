@@ -16,7 +16,6 @@
 
 #include <mbf_msgs/ExePathResult.h>
 
-#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -67,12 +66,14 @@ void Optimizer::shutdown()
 
 void Optimizer::setParams(const mppi_controller::MPPIControllerConfig& config)
 {
+  constexpr double kMinPositive = 1e-6;
+
   auto& s = settings_;
   s.model_dt = config.model_dt;
   s.time_steps = config.time_steps;
   s.batch_size = config.batch_size;
   s.iteration_count = config.iteration_count;
-  s.temperature = config.temperature;
+  s.temperature = config.temperature > kMinPositive ? config.temperature : kMinPositive;
   s.gamma = config.gamma;
   s.retry_attempt_limit = config.retry_attempt_limit;
   s.open_loop = config.open_loop;
@@ -81,9 +82,9 @@ void Optimizer::setParams(const mppi_controller::MPPIControllerConfig& config)
   s.base_constraints.vy = config.vy_max;
   s.base_constraints.wz = config.wz_max;
   s.base_constraints.max_vel_trans = config.max_vel_trans;
-  s.sampling_std.vx = config.vx_std;
-  s.sampling_std.vy = config.vy_std;
-  s.sampling_std.wz = config.wz_std;
+  s.sampling_std.vx = config.vx_std > kMinPositive ? config.vx_std : kMinPositive;
+  s.sampling_std.vy = config.vy_std > kMinPositive ? config.vy_std : kMinPositive;
+  s.sampling_std.wz = config.wz_std > kMinPositive ? config.wz_std : kMinPositive;
   s.constraints = s.base_constraints;
 
   ROS_DEBUG_NAMED("Optimizer",
@@ -414,6 +415,8 @@ xt::xtensor<float, 2> Optimizer::generateOptimizedTrajectory() const
 
 void Optimizer::updateControlSequence()
 {
+  constexpr float kMinPositive = 1e-6f;
+
   auto& s = settings_;
   auto bounded_noises_vx = state_.cvx - control_sequence_.vx;
   auto bounded_noises_wz = state_.cwz - control_sequence_.wz;
@@ -434,7 +437,13 @@ void Optimizer::updateControlSequence()
 
   auto&& costs_normalized = costs_ - xt::amin(costs_, immediate);
   auto&& exponents = xt::eval(xt::exp(-1 / s.temperature * costs_normalized));
-  auto&& softmaxes = xt::eval(exponents / xt::sum(exponents, immediate));
+  const float softmax_den = xt::sum(exponents, immediate)();
+  xt::xtensor<float, 1> softmaxes = xt::ones<float>({ static_cast<size_t>(settings_.batch_size) }) /
+    static_cast<float>(settings_.batch_size);
+  if ((softmax_den == softmax_den) && softmax_den > kMinPositive)
+  {
+    softmaxes = xt::eval(exponents / softmax_den);
+  }
   auto&& softmaxes_extened = xt::eval(xt::view(softmaxes, xt::all(), xt::newaxis()));
 
   xt::noalias(control_sequence_.vx) = xt::sum(state_.cvx * softmaxes_extened, 0, immediate);

@@ -163,6 +163,7 @@ protected:
   bool initialized_{ false };
   bool visualize_{ false };
   bool publish_optimal_trajectory_{ false };
+  int critic_index_to_visualize_{ 0 };
 };
 
 }  // namespace mppi_controller

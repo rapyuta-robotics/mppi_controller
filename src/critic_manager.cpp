@@ -31,6 +31,7 @@ void CriticManager::on_configure(const ros::NodeHandle& parent_nh, costmap_2d::C
 void CriticManager::getParams()
 {
   const XmlRpc::XmlRpcValue plugins = parent_nh_.param<XmlRpc::XmlRpcValue>("critics", XmlRpc::XmlRpcValue());
+  visualize_ = parent_nh_.param("visualize", false);
   if (plugins.getType() != XmlRpc::XmlRpcValue::TypeArray)
   {
     ROS_FATAL("'critics' parameter does not define a valid list");
@@ -59,15 +60,33 @@ void CriticManager::getParams()
   }
 }
 
-void CriticManager::evalTrajectoriesScores(CriticData& data) const
+void CriticManager::evalTrajectoriesScores(CriticData& data)
 {
+  if (visualize_)
+  {
+    critic_costs_.clear();
+    critic_costs_.reserve(critics_.size());
+  }
+
   for (size_t q = 0; q < critics_.size(); q++)
   {
     if (data.fail_flag)
     {
       break;
     }
+
+    xt::xtensor<float, 1> costs_before;
+    if (visualize_)
+    {
+      costs_before = data.costs;
+    }
+
     critics_[q]->score(data);
+
+    if (visualize_)
+    {
+      critic_costs_.emplace_back(critics_[q]->getName(), data.costs - costs_before);
+    }
   }
 }
 

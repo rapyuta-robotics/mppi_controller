@@ -122,9 +122,16 @@ uint32_t MPPIController::computeVelocityCommands(const geometry_msgs::PoseStampe
 
 void MPPIController::visualize(nav_msgs::Path transformed_plan, const xt::xtensor<float, 2>& optimal_trajectory)
 {
+  const auto& critic_costs = optimizer_.getCriticCosts();
+  const xt::xtensor<float, 1>& costs =
+    (critic_index_to_visualize_ <= 0 ||
+    critic_index_to_visualize_ > static_cast<int>(critic_costs.size())) ?
+    optimizer_.getCosts() :
+    critic_costs[critic_index_to_visualize_ - 1].second;
+
   trajectory_visualizer_.add(
     optimizer_.getGeneratedTrajectories(),
-    optimizer_.getCosts(),
+    costs,
     optimizer_.getCollisionFlags(),
     "Candidate Trajectories");
   trajectory_visualizer_.add(optimal_trajectory, "Optimal Trajectory");
@@ -269,6 +276,7 @@ void MPPIController::setParams()
   std::lock_guard<std::mutex> guard(config_mtx_);
   visualize_ = config_.visualize;
   publish_optimal_trajectory_ = config_.publish_optimal_trajectory;
+  critic_index_to_visualize_ = config_.critic_index_to_visualize;
   optimizer_.setParams(config_);
   path_handler_.setParams(config_);
   trajectory_visualizer_.setParams(config_);

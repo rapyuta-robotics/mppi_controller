@@ -18,6 +18,7 @@
 #include <string>
 #include <memory>
 #include <optional>
+#include <utility>
 
 #include <xtensor/xtensor.hpp>
 #include <xtensor/xview.hpp>
@@ -123,6 +124,15 @@ public:
   const xt::xtensor<float, 1>& getCosts() const
   {
     return costs_;
+  }
+
+  /**
+   * @brief Get per-critic cost breakdown from last evaluation
+   * @return Vector of (critic_name, cost_array) pairs
+   */
+  const std::vector<std::pair<std::string, xt::xtensor<float, 1>>>& getCriticCosts() const
+  {
+    return critic_manager_.getCriticCosts();
   }
 
   /**

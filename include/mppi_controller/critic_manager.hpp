@@ -21,6 +21,7 @@
 #include <memory>
 #include <pluginlib/class_loader.hpp>
 #include <string>
+#include <utility>
 #include <vector>
 #include <xtensor/xtensor.hpp>
 
@@ -63,7 +64,16 @@ public:
    * @param CriticData Struct of necessary information to pass to the critic
    * functions
    */
-  void evalTrajectoriesScores(CriticData& data) const;
+  void evalTrajectoriesScores(CriticData& data);
+
+  /**
+   * @brief Get stored per-critic costs from last evaluation
+   * @return Vector of (critic_name, cost_array) pairs
+   */
+  const std::vector<std::pair<std::string, xt::xtensor<float, 1>>>& getCriticCosts() const
+  {
+    return critic_costs_;
+  }
 
   void updateConstraints(const models::ControlConstraints& constraints);
 
@@ -76,9 +86,11 @@ protected:
 protected:
   ros::NodeHandle parent_nh_;
   costmap_2d::Costmap2DROS* costmap_ros_;
+  bool visualize_{ false };
 
   pluginlib::ClassLoader<critics::CriticBase> loader_;
   std::vector<boost::shared_ptr<critics::CriticBase>> critics_;
+  std::vector<std::pair<std::string, xt::xtensor<float, 1>>> critic_costs_;
 };
 
 }  // namespace mppi

@@ -99,6 +99,24 @@ public:
   xt::xtensor<float, 2> getOptimizedTrajectory();
 
   /**
+   * @brief Get the aggregated trajectory costs from last evaluation
+   * @return Costs per sampled trajectory
+   */
+  const xt::xtensor<float, 1>& getCosts() const
+  {
+    return costs_;
+  }
+
+  /**
+   * @brief Get per-trajectory collision flags from last evaluation
+   * @return Flags where true means trajectory collides
+   */
+  const std::vector<bool>& getCollisionFlags() const
+  {
+    return critics_data_.trajectories_in_collision;
+  }
+
+  /**
    * @brief Set the maximum speed based on the speed limits callback
    * @param speed_limit Limit of the speed for use
    * @param percentage Whether the speed limit is absolute or relative

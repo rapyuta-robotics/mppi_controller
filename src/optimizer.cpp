@@ -205,6 +205,7 @@ void Optimizer::prepare(const geometry_msgs::PoseStamped& robot_pose, const geom
   state_.speed = robot_speed;
   path_ = utils::toTensor(plan);
   costs_.fill(0);
+  critics_data_.trajectories_in_collision.assign(costs_.shape(0), false);
 
   critics_data_.fail_flag = false;
   critics_data_.motion_model = motion_model_;

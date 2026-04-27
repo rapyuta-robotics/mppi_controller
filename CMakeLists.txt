@@ -36,7 +36,14 @@ set(dependencies_pkgs
   visualization_msgs
 )
 
-find_package(catkin REQUIRED COMPONENTS ${dependencies_pkgs})
+find_package(catkin REQUIRED COMPONENTS ${dependencies_pkgs} message_generation)
+
+add_message_files(
+  FILES
+  CriticsStats.msg
+)
+
+generate_messages()
 
 include_directories(
   include
@@ -53,6 +60,7 @@ generate_dynamic_reconfigure_options(
   cfg/BaseCritic.cfg
   cfg/MPPIController.cfg
   cfg/Ackermann.cfg
+  cfg/CostCritic.cfg
   cfg/GoalAngleCritic.cfg
   cfg/GoalCritic.cfg
   cfg/ObstacleCritic.cfg
@@ -66,7 +74,7 @@ generate_dynamic_reconfigure_options(
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES ${libraries}
-  CATKIN_DEPENDS ${dependencies_pkgs}
+  CATKIN_DEPENDS ${dependencies_pkgs} message_runtime
 )
 
 add_library(mppi_controller SHARED
@@ -78,6 +86,7 @@ add_library(mppi_controller SHARED
   src/noise_generator.cpp
 )
 add_library(mppi_critics SHARED
+  src/critics/cost_critic.cpp
   src/critics/goal_critic.cpp
   src/critics/obstacles_critic.cpp
   src/critics/goal_angle_critic.cpp
@@ -87,11 +96,15 @@ add_library(mppi_critics SHARED
   src/critics/prefer_forward_critic.cpp
   src/critics/twirling_critic.cpp
   src/critics/constraint_critic.cpp
+  src/critics/velocity_deadband_critic.cpp
 
   # src/critics/path_align_legacy_critic.cpp
 )
+add_library(mppi_trajectory_validators SHARED
+  src/trajectory_validators/optimal_trajectory_validator.cpp
+)
 
-set(libraries mppi_critics mppi_controller)
+set(libraries mppi_critics mppi_controller mppi_trajectory_validators)
 
 foreach(lib IN LISTS libraries)
   target_compile_options(${lib} PUBLIC -fconcepts)
@@ -99,7 +112,7 @@ foreach(lib IN LISTS libraries)
   add_dependencies(${lib} ${PROJECT_NAME}_gencfg ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} xtensor xtl)
 endforeach()
 
-install(TARGETS mppi_critics mppi_controller
+install(TARGETS mppi_critics mppi_controller mppi_trajectory_validators
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
@@ -107,3 +120,4 @@ install(TARGETS mppi_critics mppi_controller
 install(DIRECTORY include/${PROJECT_NAME}/ DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
 install(FILES critics.xml DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
 install(FILES mppic.xml DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+install(FILES trajectory_validators.xml DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})

@@ -38,6 +38,7 @@ struct OptimizerSettings
   int iteration_count{ 0 };
   bool shift_control_sequence{ false };
   int retry_attempt_limit{ 0 };
+  bool open_loop{ false };
 };
 
 }  // namespace mppi::models

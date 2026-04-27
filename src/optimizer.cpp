@@ -42,6 +42,22 @@ void Optimizer::initialize(const ros::NodeHandle& parent_nh, costmap_2d::Costmap
 
   critic_manager_.on_configure(parent_nh_, costmap_ros_);
 
+  ros::NodeHandle validator_nh(parent_nh_, "TrajectoryValidator");
+  std::string validator_plugin_type;
+  validator_nh.param("plugin", validator_plugin_type, std::string("mppi::OptimalTrajectoryValidator"));
+  validator_loader_ = std::make_unique<pluginlib::ClassLoader<OptimalTrajectoryValidator>>(
+    "mppi_controller", "mppi::OptimalTrajectoryValidator");
+
+  try
+  {
+    trajectory_validator_ = validator_loader_->createInstance(validator_plugin_type);
+    ROS_INFO_NAMED("Optimizer", "Loaded trajectory validator plugin: %s", validator_plugin_type.c_str());
+  }
+  catch (const pluginlib::PluginlibException& e)
+  {
+    throw std::runtime_error(std::string("Failed to load trajectory validator plugin: ") + e.what());
+  }
+
   models::OptimizerSettings default_settings;
 }
 
@@ -60,6 +76,7 @@ void Optimizer::setParams(const mppi_controller::MPPIControllerConfig& config)
   s.temperature = config.temperature;
   s.gamma = config.gamma;
   s.retry_attempt_limit = config.retry_attempt_limit;
+  s.open_loop = config.open_loop;
   s.base_constraints.vx_max = config.vx_max;
   s.base_constraints.vx_min = config.vx_min;
   s.base_constraints.ax_max = config.ax_max;
@@ -93,6 +110,7 @@ void Optimizer::setParams(const mppi_controller::MPPIControllerConfig& config)
                   s.base_constraints.wz, s.sampling_std.vx, s.sampling_std.vy, s.sampling_std.wz);
 
   setMotionModel(config.motion_model);
+  setVisualize(config.visualize);
   setOffset(config.controller_frequency);
   noise_generator_.setParams(config);
   reset();
@@ -130,8 +148,20 @@ void Optimizer::reset()
 
   costs_ = xt::zeros<float>({ settings_.batch_size });
   generated_trajectories_.reset(settings_.batch_size, settings_.time_steps);
+  optimal_trajectory_ = xt::xtensor<float, 2>::from_shape(
+    {static_cast<size_t>(settings_.time_steps), static_cast<size_t>(3)});
+  optimal_trajectory_.fill(0.0f);
+
+  if (settings_.open_loop)
+  {
+    last_command_vel_ = geometry_msgs::Twist();
+  }
 
   critic_manager_.updateConstraints(settings_.constraints);
+  if (trajectory_validator_ && settings_.model_dt > 0.0 && settings_.time_steps > 0)
+  {
+    trajectory_validator_->initialize(parent_nh_, "TrajectoryValidator", costmap_ros_, settings_);
+  }
   ROS_INFO("Optimizer reset");
 }
 
@@ -144,7 +174,18 @@ uint32_t Optimizer::evalControl(const geometry_msgs::PoseStamped& robot_pose, co
   {
     optimize();
 
-    if (uint32_t error = mbf_msgs::ExePathResult::SUCCESS; !fallback(critics_data_.fail_flag, error))
+    optimal_trajectory_ = generateOptimizedTrajectory();
+    const auto validation_result = trajectory_validator_ ?
+      trajectory_validator_->validateTrajectory(optimal_trajectory_, control_sequence_, robot_pose, robot_speed, plan) :
+      ValidationResult::SUCCESS;
+
+    if (validation_result == ValidationResult::FAILURE)
+    {
+      return mbf_msgs::ExePathResult::NO_VALID_CMD;
+    }
+
+    if (uint32_t error = mbf_msgs::ExePathResult::SUCCESS;
+      !fallback(critics_data_.fail_flag || validation_result == ValidationResult::SOFT_RESET, error))
     {
       if (error != mbf_msgs::ExePathResult::SUCCESS)
       {
@@ -156,6 +197,10 @@ uint32_t Optimizer::evalControl(const geometry_msgs::PoseStamped& robot_pose, co
 
   utils::savitskyGolayFilter(control_sequence_, control_history_, settings_);
   cmd_vel = getControlFromSequenceAsTwist(plan.header);
+  if (settings_.open_loop)
+  {
+    last_command_vel_ = cmd_vel.twist;
+  }
 
   if (settings_.shift_control_sequence)
   {
@@ -202,7 +247,7 @@ void Optimizer::prepare(const geometry_msgs::PoseStamped& robot_pose, const geom
                         const nav_msgs::Path& plan)
 {
   state_.pose = robot_pose;
-  state_.speed = robot_speed;
+  state_.speed = settings_.open_loop ? last_command_vel_ : robot_speed;
   path_ = utils::toTensor(plan);
   costs_.fill(0);
   critics_data_.trajectories_in_collision.assign(costs_.shape(0), false);
@@ -401,7 +446,7 @@ void Optimizer::integrateStateVelocities(models::Trajectories& trajectories, con
   xt::noalias(trajectories.y) = state.pose.pose.position.y + xt::cumsum(dy * settings_.model_dt, 1);
 }
 
-xt::xtensor<float, 2> Optimizer::getOptimizedTrajectory()
+xt::xtensor<float, 2> Optimizer::generateOptimizedTrajectory() const
 {
   auto&& sequence = xt::xtensor<float, 2>::from_shape(
       { static_cast<long unsigned int>(settings_.time_steps), isHolonomic() ? 3u : 2u });

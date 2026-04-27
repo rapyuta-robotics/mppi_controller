@@ -20,6 +20,8 @@
 #include <optional>
 #include <utility>
 
+#include <pluginlib/class_loader.hpp>
+
 #include <xtensor/xtensor.hpp>
 #include <xtensor/xview.hpp>
 
@@ -36,6 +38,7 @@
 #include "mppi_controller/models/state.hpp"
 #include "mppi_controller/models/trajectories.hpp"
 #include "mppi_controller/models/path.hpp"
+#include "mppi_controller/optimal_trajectory_validator.hpp"
 #include "mppi_controller/tools/noise_generator.hpp"
 #include "mppi_controller/tools/utils.hpp"
 
@@ -97,7 +100,10 @@ public:
    * @brief Get the optimal trajectory for a cycle for visualization
    * @return Optimal trajectory
    */
-  xt::xtensor<float, 2> getOptimizedTrajectory();
+  const xt::xtensor<float, 2>& getOptimizedTrajectory() const
+  {
+    return optimal_trajectory_;
+  }
 
   /**
    * @brief Get the optimal control sequence for a cycle
@@ -115,6 +121,11 @@ public:
   const models::OptimizerSettings& getSettings() const
   {
     return settings_;
+  }
+
+  void setVisualize(bool visualize)
+  {
+    critic_manager_.setVisualize(visualize);
   }
 
   /**
@@ -233,6 +244,12 @@ protected:
   void integrateStateVelocities(xt::xtensor<float, 2>& trajectories, const xt::xtensor<float, 2>& state) const;
 
   /**
+   * @brief Generate the current optimal trajectory from the control sequence
+   * @return Optimal trajectory sampled over time
+   */
+  xt::xtensor<float, 2> generateOptimizedTrajectory() const;
+
+  /**
    * @brief Update control sequence with state controls weighted by costs
    * using softmax function
    */
@@ -283,6 +300,10 @@ protected:
   models::Trajectories generated_trajectories_;
   models::Path path_;
   xt::xtensor<float, 1> costs_;
+  xt::xtensor<float, 2> optimal_trajectory_;
+  std::unique_ptr<pluginlib::ClassLoader<OptimalTrajectoryValidator>> validator_loader_;
+  OptimalTrajectoryValidator::Ptr trajectory_validator_;
+  geometry_msgs::Twist last_command_vel_;
 
   CriticData critics_data_ = {
     state_, generated_trajectories_, path_, costs_, settings_.model_dt, false, nullptr, std::nullopt, std::nullopt

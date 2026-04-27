@@ -25,11 +25,9 @@
 #include <vector>
 #include <xtensor/xtensor.hpp>
 
-#include "geometry_msgs/Twist.h"
-#include "geometry_msgs/TwistStamped.h"
+#include "mppi_controller/CriticsStats.h"
 #include "mppi_controller/critic_data.hpp"
 #include "mppi_controller/critic_function.hpp"
-#include "mppi_controller/tools/utils.hpp"
 #include "mppi_controller/models/constraints.hpp"
 
 namespace mppi
@@ -75,6 +73,15 @@ public:
     return critic_costs_;
   }
 
+  void setVisualize(bool visualize)
+  {
+    visualize_ = visualize;
+    if (!visualize_)
+    {
+      critic_costs_.clear();
+    }
+  }
+
   void updateConstraints(const models::ControlConstraints& constraints);
 
 protected:
@@ -87,6 +94,7 @@ protected:
   ros::NodeHandle parent_nh_;
   costmap_2d::Costmap2DROS* costmap_ros_;
   bool visualize_{ false };
+  ros::Publisher critics_stats_publisher_;
 
   pluginlib::ClassLoader<critics::CriticBase> loader_;
   std::vector<boost::shared_ptr<critics::CriticBase>> critics_;

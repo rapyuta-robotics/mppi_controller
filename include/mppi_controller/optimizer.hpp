@@ -99,6 +99,24 @@ public:
   xt::xtensor<float, 2> getOptimizedTrajectory();
 
   /**
+   * @brief Get the optimal control sequence for a cycle
+   * @return Control sequence
+   */
+  const models::ControlSequence& getOptimalControlSequence() const
+  {
+    return control_sequence_;
+  }
+
+  /**
+   * @brief Get optimizer settings
+   * @return Settings structure
+   */
+  const models::OptimizerSettings& getSettings() const
+  {
+    return settings_;
+  }
+
+  /**
    * @brief Get the aggregated trajectory costs from last evaluation
    * @return Costs per sampled trajectory
    */

@@ -32,6 +32,7 @@ set(dependencies_pkgs
   tf2_geometry_msgs
   tf2_eigen
   tf2_ros
+  teb_local_planner
   visualization_msgs
 )
 

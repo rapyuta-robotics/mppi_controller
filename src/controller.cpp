@@ -46,6 +46,7 @@ void MPPIController::initialize(std::string name, tf2_ros::Buffer* tf, costmap_2
   initialized_ = true;
 
   trajectory_visualizer_.on_configure(pnh_, costmap_ros_->getGlobalFrameID());
+  optimal_trajectory_publisher_ = pnh_.advertise<teb_local_planner::TrajectoryMsg>("optimal_trajectory", 1);
 
   ROS_INFO_NAMED(LOGNAME, "Initialized");
 }
@@ -85,28 +86,48 @@ uint32_t MPPIController::computeVelocityCommands(const geometry_msgs::PoseStampe
     return error;
   }
 
+  xt::xtensor<float, 2> optimal_trajectory;
+  if (publish_optimal_trajectory_ || visualize_)
+  {
+    optimal_trajectory = optimizer_.getOptimizedTrajectory();
+  }
+
 #ifdef BENCHMARK_TESTING
   auto end = std::chrono::system_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
   RCLCPP_INFO(logger_, "Control loop execution time: %ld [ms]", duration);
 #endif
 
+  if (publish_optimal_trajectory_ && optimal_trajectory_publisher_.getNumSubscribers() > 0)
+  {
+    std_msgs::Header trajectory_header;
+    trajectory_header.stamp = cmd_vel.header.stamp;
+    trajectory_header.frame_id = costmap_ros_->getGlobalFrameID();
+
+    auto trajectory_msg = utils::toTrajectoryMsg(
+      optimal_trajectory,
+      optimizer_.getOptimalControlSequence(),
+      optimizer_.getSettings().model_dt,
+      trajectory_header);
+    optimal_trajectory_publisher_.publish(trajectory_msg);
+  }
+
   if (visualize_)
   {
-    visualize(std::move(transformed_plan));
+    visualize(std::move(transformed_plan), optimal_trajectory);
   }
 
   return mbf_msgs::ExePathResult::SUCCESS;
 }
 
-void MPPIController::visualize(nav_msgs::Path transformed_plan)
+void MPPIController::visualize(nav_msgs::Path transformed_plan, const xt::xtensor<float, 2>& optimal_trajectory)
 {
   trajectory_visualizer_.add(
     optimizer_.getGeneratedTrajectories(),
     optimizer_.getCosts(),
     optimizer_.getCollisionFlags(),
     "Candidate Trajectories");
-  trajectory_visualizer_.add(optimizer_.getOptimizedTrajectory(), "Optimal Trajectory");
+  trajectory_visualizer_.add(optimal_trajectory, "Optimal Trajectory");
   trajectory_visualizer_.visualize(std::move(transformed_plan));
 }
 
@@ -247,6 +268,7 @@ void MPPIController::setParams()
 {
   std::lock_guard<std::mutex> guard(config_mtx_);
   visualize_ = config_.visualize;
+  publish_optimal_trajectory_ = config_.publish_optimal_trajectory;
   optimizer_.setParams(config_);
   path_handler_.setParams(config_);
   trajectory_visualizer_.setParams(config_);

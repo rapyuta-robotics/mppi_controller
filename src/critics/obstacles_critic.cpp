@@ -123,6 +123,8 @@ void ObstaclesCritic::score(CriticData& data)
 
   const size_t traj_len = data.trajectories.x.shape(1);
   bool all_trajectories_collide = true;
+  auto& collisions = data.trajectories_in_collision;
+  const bool track_collisions = !collisions.empty();
   for (size_t i = 0; i < data.trajectories.x.shape(0); ++i)
   {
     bool trajectory_collide = false;
@@ -168,6 +170,10 @@ void ObstaclesCritic::score(CriticData& data)
     if (!trajectory_collide)
     {
       all_trajectories_collide = false;
+    }
+    else if (track_collisions && i < collisions.size())
+    {
+      collisions[i] = true;
     }
     raw_cost[i] = trajectory_collide ? collision_cost_ : traj_cost;
   }

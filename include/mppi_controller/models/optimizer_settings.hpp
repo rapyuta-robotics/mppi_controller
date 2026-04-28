@@ -27,8 +27,8 @@ namespace mppi::models
  */
 struct OptimizerSettings
 {
-  models::ControlConstraints base_constraints{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-  models::ControlConstraints constraints{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  models::ControlConstraints base_constraints{ 0, 0, 0, 0, 0 };
+  models::ControlConstraints constraints{ 0, 0, 0, 0, 0};
   models::SamplingStd sampling_std{ 0, 0, 0 };
   double model_dt{ 0 };
   double temperature{ 0 };
@@ -38,6 +38,7 @@ struct OptimizerSettings
   int iteration_count{ 0 };
   bool shift_control_sequence{ false };
   int retry_attempt_limit{ 0 };
+  bool open_loop{ false };
 };
 
 }  // namespace mppi::models

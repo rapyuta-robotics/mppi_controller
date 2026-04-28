@@ -20,6 +20,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 #include <xtensor/xtensor.hpp>
 
 #include "mppi_controller/models/trajectories.hpp"
@@ -61,6 +62,16 @@ public:
   void add(const models::Trajectories& trajectories, const std::string& marker_namespace);
 
   /**
+   * @brief Add candidate trajectories cost-colored with collision highlighting
+   * @param trajectories Candidate trajectories
+   * @param costs Cost per trajectory
+   * @param collisions Collision flags per trajectory
+   * @param marker_namespace Marker namespace
+   */
+  void add(const models::Trajectories& trajectories, const xt::xtensor<float, 1>& costs,
+           const std::vector<bool>& collisions, const std::string& marker_namespace);
+
+  /**
    * @brief Visualize the plan
    * @param plan Plan to visualize
    */
@@ -74,6 +85,12 @@ public:
   void setParams(const mppi_controller::MPPIControllerConfig& config);
 
 protected:
+  void addCostColoredTrajectory(size_t trajectory_idx, const models::Trajectories& trajectories,
+                                float normalized_cost, bool in_collision,
+                                const std::string& marker_namespace);
+
+  static std_msgs::ColorRGBA costToColor(float normalized_cost);
+
   std::string frame_id_;
   ros::Publisher trajectory_publisher_;
   ros::Publisher transformed_path_pub_;

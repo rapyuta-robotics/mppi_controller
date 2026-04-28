@@ -7,6 +7,12 @@
       <description>mppi critic for obstacle avoidance</description>
     </class>
 
+    <class  name="mppi_critics/CostCritic"
+            type="mppi::critics::CostCritic"
+            base_class_type="mppi::critics::CriticBase">
+      <description>mppi critic for obstacle avoidance using costmap score</description>
+    </class>
+
     <class  name="mppi_critics/GoalCritic"
             type="mppi::critics::GoalCritic"
             base_class_type="mppi::critics::CriticBase">
@@ -59,6 +65,12 @@
             type="mppi::critics::ConstraintCritic"
             base_class_type="mppi::critics::CriticBase">
       <description>mppi critic for incentivizing moving within kinematic and dynamic bounds</description>
+    </class>
+
+    <class  name="mppi_critics/VelocityDeadbandCritic"
+            type="mppi::critics::VelocityDeadbandCritic"
+            base_class_type="mppi::critics::CriticBase">
+      <description>mppi critic for restricting command velocities in deadband range</description>
     </class>
 
   </library>

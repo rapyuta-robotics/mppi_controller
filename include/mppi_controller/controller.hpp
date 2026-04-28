@@ -30,6 +30,7 @@
 #include <base_local_planner/local_planner_util.h>
 #include <base_local_planner/odometry_helper_ros.h>
 #include <dynamic_reconfigure/server.h>
+#include <teb_local_planner/TrajectoryMsg.h>
 #include "mppi_controller/MPPIControllerConfig.h"
 
 namespace mppi_controller
@@ -133,8 +134,9 @@ protected:
   /**
    * @brief Visualize trajectories
    * @param transformed_plan Transformed input plan
+    * @param optimal_trajectory Optimal trajectory for current cycle
    */
-  void visualize(nav_msgs::Path transformed_plan);
+    void visualize(nav_msgs::Path transformed_plan, const xt::xtensor<float, 2>& optimal_trajectory);
 
   void reconfigureCB(const mppi_controller::MPPIControllerConfig& config, uint32_t level);
   void setParams();
@@ -156,9 +158,12 @@ protected:
   PathHandler path_handler_;
   TrajectoryVisualizer trajectory_visualizer_;
   std::unique_ptr<dynamic_reconfigure::Server<MPPIControllerConfig>> dsrv_;
+  ros::Publisher optimal_trajectory_publisher_;
 
   bool initialized_{ false };
   bool visualize_{ false };
+  bool publish_optimal_trajectory_{ false };
+  int critic_index_to_visualize_{ 0 };
 };
 
 }  // namespace mppi_controller

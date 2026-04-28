@@ -12,36 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef MPPI_CONTROLLER__MODELS__CONSTRAINTS_HPP_
-#define MPPI_CONTROLLER__MODELS__CONSTRAINTS_HPP_
+#ifndef MPPI_CONTROLLER__CRITICS__VELOCITY_DEADBAND_CRITIC_HPP_
+#define MPPI_CONTROLLER__CRITICS__VELOCITY_DEADBAND_CRITIC_HPP_
 
-namespace mppi::models
+#include <vector>
+
+#include "mppi_controller/critic_function.hpp"
+
+namespace mppi::critics
 {
 
-/**
- * @struct mppi::models::ControlConstraints
- * @brief Constraints on control
- */
-struct ControlConstraints
+class VelocityDeadbandCritic : public CriticFunction<>
 {
-  double vx_max;
-  double vx_min;
-  double vy;
-  double wz;
-  double max_vel_trans;
+public:
+  void initialize() override;
+  void score(CriticData& data) override;
+
+protected:
+  std::vector<float> deadband_velocities_{0.0f, 0.0f, 0.0f};
 };
 
-/**
- * @struct mppi::models::SamplingStd
- * @brief Noise parameters for sampling trajectories
- */
-struct SamplingStd
-{
-  double vx;
-  double vy;
-  double wz;
-};
+}  // namespace mppi::critics
 
-}  // namespace mppi::models
-
-#endif  // MPPI_CONTROLLER__MODELS__CONSTRAINTS_HPP_
+#endif  // MPPI_CONTROLLER__CRITICS__VELOCITY_DEADBAND_CRITIC_HPP_

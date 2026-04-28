@@ -26,6 +26,7 @@
 #include <visualization_msgs/MarkerArray.h>
 #include <mbf_utility/navigation_utility.h>
 #include <costmap_2d/costmap_2d_ros.h>
+#include <teb_local_planner/TrajectoryMsg.h>
 
 #include <algorithm>
 #include <chrono>
@@ -156,6 +157,49 @@ inline geometry_msgs::TwistStamped toTwistStamped(float vx, float vy, float wz, 
 
   return twist;
 }
+
+/**
+ * @brief Convert optimal trajectory and controls into a mobile robot trajectory message
+ * @param trajectory Optimal trajectory positions / yaws
+ * @param control_sequence Optimal control sequence
+ * @param model_dt Time delta between points
+ * @param header Header to stamp outgoing message
+ * @return teb_local_planner trajectory message
+ */
+inline teb_local_planner::TrajectoryMsg toTrajectoryMsg(
+  const xt::xtensor<float, 2>& trajectory,
+  const models::ControlSequence& control_sequence,
+  const double model_dt,
+  const std_msgs::Header& header)
+{
+  teb_local_planner::TrajectoryMsg trajectory_msg;
+  trajectory_msg.header = header;
+
+  const size_t point_count = trajectory.shape()[0];
+  trajectory_msg.trajectory.resize(point_count);
+
+  for (size_t i = 0; i < point_count; ++i)
+  {
+    auto& point = trajectory_msg.trajectory[i];
+    point.time_from_start = ros::Duration(static_cast<double>(i) * model_dt);
+    point.pose.position.x = trajectory(i, 0);
+    point.pose.position.y = trajectory(i, 1);
+
+    tf2::Quaternion quaternion;
+    quaternion.setRPY(0.0, 0.0, trajectory(i, 2));
+    point.pose.orientation = tf2::toMsg(quaternion);
+
+    point.velocity.linear.x = control_sequence.vx(i);
+    point.velocity.angular.z = control_sequence.wz(i);
+
+    if (i < control_sequence.vy.shape()[0])
+    {
+      point.velocity.linear.y = control_sequence.vy(i);
+    }
+  }
+
+  return trajectory_msg;
+ }
 
 /**
  * @brief Convert path to a tensor

@@ -52,6 +52,9 @@ This process is then repeated a number of times and returns a converged solution
  | temperature                | double | Default: 0.3. Selectiveness of trajectories by their costs (The closer this value to 0, the "more" we take in consideration controls with less cost), 0 mean use control with best cost, huge value will lead to just taking mean of all trajectories without cost consideration                                                   |
  | gamma                      | double | Default: 0.015. A trade-off between smoothness (high) and low energy (low). This is a complex parameter that likely won't need to be changed from the default of `0.1` which works well for a broad range of cases. See Section 3D-2 in "Information Theoretic Model Predictive Control: Theory and Applications to Autonomous Driving" for detailed information.       |
  | visualize                  | bool   | Default: false. Publish visualization of trajectories, which can slow down the controller significantly. Use only for debugging.                                                                                                                                       |
+ | critic_index_to_visualize  | int    | Default: 0. `0` colors candidate trajectories by total cost; `1..N` colors them by the selected critic's individual contribution in configured critic order.                                                                                                    |
+ | publish_optimal_trajectory | bool   | Default: false. Publishes the full optimal trajectory sequence on the `optimal_trajectory` topic for downstream consumers needing more than the next command step.                                                                                              |
+ | open_loop                  | bool   | Default: false. Uses the previous command instead of wheel odometry to seed the optimizer state, which can help when odometry latency causes poor initial state estimates.                                                                                       |
  | retry_attempt_limit        | int    | Default 1. Number of attempts to find feasible trajectory on failure for soft-resets before reporting failure.                                                                                                                                                                                                       |
  | regenerate_noises          | bool   | Default false. Whether to regenerate noises each iteration or use single noise distribution computed on initialization and reset. Practically, this is found to work fine since the trajectories are being sampled stochastically from a normal distribution and reduces compute jittering at run-time due to thread wake-ups to resample normal distribution. |
 
@@ -60,6 +63,12 @@ This process is then repeated a number of times and returns a converged solution
  | ---------------       | ------ | ----------------------------------------------------------------------------------------------------------- |
  | trajectory_step       | int    | Default: 5. The step between trajectories to visualize to downsample candidate trajectory pool.             |
  | time_step             | int    | Default: 3. The step between points on trajectories to visualize to downsample trajectory density.          |
+
+#### Trajectory Validator
+ | Parameter                | Type   | Definition                                                                                                  |
+ | ---------------          | ------ | ----------------------------------------------------------------------------------------------------------- |
+ | collision_lookahead_time | double | Default: 2.0. Amount of time along the optimal trajectory to check for collisions before accepting it.      |
+ | consider_footprint       | bool   | Default: false. Whether to check the full footprint instead of a center-point cost lookup.                 |
 
 #### Path Handler
  | Parameter                  | Type   | Definition                                                                                                  |
@@ -107,6 +116,25 @@ This process is then repeated a number of times and returns a converged solution
  | collision_cost       | double | Default 10000.0. Cost to apply to a true collision in a trajectory.                                          |
  | collision_margin_distance   | double    | Default 0.10. Margin distance from collision to apply severe penalty, similar to footprint inflation. Between 0.05-0.2 is reasonable. |
  | near_goal_distance          | double    | Default 0.5. Distance near goal to stop applying preferential obstacle term to allow robot to smoothly converge to goal pose in close proximity to obstacles.
+
+#### Cost Critic
+ | Parameter               | Type   | Definition                                                                                                  |
+ | ---------------         | ------ | ----------------------------------------------------------------------------------------------------------- |
+ | consider_footprint      | bool   | Default: true. Whether to use center-point cost or SE2 footprint cost when checking collisions.            |
+ | cost_weight             | double | Default: 3.81. Weight applied to the critic term after normalization by costmap values.                    |
+ | cost_power              | int    | Default: 1. Power order to apply to the critic term.                                                       |
+ | critical_cost           | double | Default: 300.0. Penalty applied to points above the near-collision threshold.                              |
+ | near_collision_cost     | int    | Default: 253. Costmap threshold at or above which points are considered near collision.                    |
+ | collision_cost          | double | Default: 1000000.0. Cost assigned to trajectories that collide.                                            |
+ | near_goal_distance      | double | Default: 1.0. Distance near goal to stop preferring lower-cost space over goal convergence.                |
+ | trajectory_point_step   | int    | Default: 2. Step of trajectory points to evaluate to reduce compute cost.                                  |
+
+#### Velocity Deadband Critic
+ | Parameter            | Type   | Definition                                                                                                  |
+ | ---------------      | ------ | ----------------------------------------------------------------------------------------------------------- |
+ | cost_weight          | double | Default: 35.0. Weight applied to time spent below the commanded deadband thresholds.                       |
+ | cost_power           | int    | Default: 1. Power order to apply to the critic term.                                                       |
+ | deadband_velocities  | vector | Default: `[0.0, 0.0, 0.0]`. Per-axis deadband thresholds for `[vx, vy, wz]`.                              |
 
 #### Path Align Critic
  | Parameter                  | Type   | Definition                                                                                                                         |
@@ -178,12 +206,17 @@ controller_server:
       gamma: 0.015
       motion_model: "DiffDrive"
       visualize: false
+      open_loop: false
       TrajectoryVisualizer:
         trajectory_step: 5
         time_step: 3
+      TrajectoryValidator:
+        plugin: "mppi::OptimalTrajectoryValidator"
+        collision_lookahead_time: 2.0
+        consider_footprint: false
       AckermannConstraints:
         min_turning_r: 0.2
-      critics: ["ConstraintCritic", "ObstaclesCritic", "GoalCritic", "GoalAngleCritic", "PathAlignCritic", "PathFollowCritic", "PathAngleCritic", "PreferForwardCritic"]
+      critics: ["ConstraintCritic", "CostCritic", "GoalCritic", "GoalAngleCritic", "PathAlignCritic", "PathFollowCritic", "PathAngleCritic", "PreferForwardCritic"]
       ConstraintCritic:
         enabled: true
         cost_power: 1
@@ -203,15 +236,25 @@ controller_server:
         cost_power: 1
         cost_weight: 5.0
         threshold_to_consider: 0.5
-      ObstaclesCritic:
+      CostCritic:
         enabled: true
         cost_power: 1
-        repulsion_weight: 1.5
-        critical_weight: 20.0
-        consider_footprint: false
-        collision_cost: 10000.0
-        collision_margin_distance: 0.1
-        near_goal_distance: 0.5
+        cost_weight: 3.81
+        critical_cost: 300.0
+        consider_footprint: true
+        collision_cost: 1000000.0
+        near_goal_distance: 1.0
+        trajectory_point_step: 2
+      # ObstaclesCritic:
+      #   enabled: false
+      #   cost_power: 1
+      #   repulsion_weight: 1.5
+      #   critical_weight: 20.0
+      #   consider_footprint: false
+      #   collision_cost: 10000.0
+      #   collision_margin_distance: 0.1
+      #   near_goal_distance: 0.5
+      #   trajectory_point_step: 2
       PathAlignCritic:
         enabled: true
         cost_power: 1
@@ -239,12 +282,19 @@ controller_server:
       #   enabled: true
       #   twirling_cost_power: 1
       #   twirling_cost_weight: 10.0
+      # VelocityDeadbandCritic:
+      #   enabled: true
+      #   cost_power: 1
+      #   cost_weight: 35.0
+      #   deadband_velocities: [0.05, 0.05, 0.05]
 ```
 ## Topics
 
 | Topic                     | Type                             | Description                                                           |
 |---------------------------|----------------------------------|-----------------------------------------------------------------------|
 | `trajectories`            | `visualization_msgs/MarkerArray` | Randomly generated trajectories, including resulting control sequence |
+| `optimal_trajectory`      | `teb_local_planner/TrajectoryMsg`| Time-parameterized optimal trajectory for the current control cycle   |
+| `critics_stats`           | `mppi_controller/CriticsStats`   | Statistics about each critic's performance when `visualize` is enabled |
 | `transformed_global_plan` | `nav_msgs/Path`                  | Part of global plan considered by local planner                       |
 
 ## Notes to Users

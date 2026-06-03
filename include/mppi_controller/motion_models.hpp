@@ -87,6 +87,21 @@ class MotionModel {
           state.vx(j, i) = cvx_curr * scale;
           state.vy(j, i) = cvy_curr * scale;
         }
+
+        // Apply acceleration / deceleration constraints per batch trajectory
+        if (control_constraints_.max_accel_trans > 0.0 || control_constraints_.max_decel_trans > 0.0) {
+          state.vx(j, i) = models::clampByAccel(
+              state.vx(j, i - 1), state.vx(j, i),
+              control_constraints_.max_accel_trans, control_constraints_.max_decel_trans, model_dt_);
+          state.vy(j, i) = models::clampByAccel(
+              state.vy(j, i - 1), state.vy(j, i),
+              control_constraints_.max_accel_trans, control_constraints_.max_decel_trans, model_dt_);
+        }
+        if (control_constraints_.max_accel_angular > 0.0 || control_constraints_.max_decel_angular > 0.0) {
+          state.wz(j, i) = models::clampByAccel(
+              state.wz(j, i - 1), state.wz(j, i),
+              control_constraints_.max_accel_angular, control_constraints_.max_decel_angular, model_dt_);
+        }
       }
     }
   }

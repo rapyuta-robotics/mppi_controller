@@ -81,7 +81,11 @@ void Optimizer::setParams(const mppi_controller::MPPIControllerConfig& config)
   s.base_constraints.vx_min = config.vx_min;
   s.base_constraints.vy = config.vy_max;
   s.base_constraints.wz = config.wz_max;
-  s.base_constraints.max_vel_trans = config.max_vel_trans;
+  s.base_constraints.max_vel_trans    = config.max_vel_trans;
+  s.base_constraints.max_accel_trans   = config.max_accel_trans;
+  s.base_constraints.max_decel_trans   = config.max_decel_trans;
+  s.base_constraints.max_accel_angular = config.max_accel_angular;
+  s.base_constraints.max_decel_angular = config.max_decel_angular;
   s.sampling_std.vx = config.vx_std > kMinPositive ? config.vx_std : kMinPositive;
   s.sampling_std.vy = config.vy_std > kMinPositive ? config.vy_std : kMinPositive;
   s.sampling_std.wz = config.wz_std > kMinPositive ? config.wz_std : kMinPositive;
@@ -306,6 +310,34 @@ void Optimizer::applyControlSequenceConstraints()
   }
 
   motion_model_->applyConstraints(control_sequence_);
+
+  // Acceleration / deceleration constraints on the mean control sequence.
+  // Step 0 is compared against the current robot velocity (state_.speed).
+  const auto& c = s.constraints;
+  if (c.max_accel_trans > 0.0 || c.max_decel_trans > 0.0 ||
+      c.max_accel_angular > 0.0 || c.max_decel_angular > 0.0)
+  {
+    float prev_vx = static_cast<float>(state_.speed.linear.x);
+    float prev_vy = isHolonomic() ? static_cast<float>(state_.speed.linear.y) : 0.0f;
+    float prev_wz = static_cast<float>(state_.speed.angular.z);
+    const float dt = static_cast<float>(s.model_dt);
+
+    for (unsigned int i = 0; i < control_sequence_.vx.shape(0); ++i) {
+      control_sequence_.vx(i) = models::clampByAccel(
+          prev_vx, control_sequence_.vx(i), c.max_accel_trans, c.max_decel_trans, dt);
+      prev_vx = control_sequence_.vx(i);
+
+      if (isHolonomic()) {
+        control_sequence_.vy(i) = models::clampByAccel(
+            prev_vy, control_sequence_.vy(i), c.max_accel_trans, c.max_decel_trans, dt);
+        prev_vy = control_sequence_.vy(i);
+      }
+
+      control_sequence_.wz(i) = models::clampByAccel(
+          prev_wz, control_sequence_.wz(i), c.max_accel_angular, c.max_decel_angular, dt);
+      prev_wz = control_sequence_.wz(i);
+    }
+  }
 }
 
 void Optimizer::updateStateVelocities(models::State& state) const

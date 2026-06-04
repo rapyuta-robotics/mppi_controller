@@ -100,16 +100,17 @@ void Optimizer::setParams(const mppi_controller::MPPIControllerConfig& config)
                   s.retry_attempt_limit, s.base_constraints.vx_max, s.base_constraints.vx_min, s.base_constraints.vy,
                   s.base_constraints.wz, s.sampling_std.vx, s.sampling_std.vy, s.sampling_std.wz);
 
+  s.controller_period = static_cast<float>(1.0 / config.controller_frequency);
+
   setMotionModel(config.motion_model);
   setVisualize(config.visualize);
-  setOffset(config.controller_frequency);
+  setOffset(s.controller_period);
   noise_generator_.setParams(config);
   reset();
 }
 
-void Optimizer::setOffset(double controller_frequency)
+void Optimizer::setOffset(double controller_period)
 {
-  const double controller_period = 1.0 / controller_frequency;
   constexpr double eps = 1e-6;
 
     if ((controller_period + eps) < settings_.model_dt)
@@ -143,10 +144,7 @@ void Optimizer::reset()
     {static_cast<size_t>(settings_.time_steps), static_cast<size_t>(3)});
   optimal_trajectory_.fill(0.0f);
 
-  if (settings_.open_loop)
-  {
-    last_command_vel_ = geometry_msgs::Twist();
-  }
+  last_command_vel_ = geometry_msgs::Twist();
 
   critic_manager_.updateConstraints(settings_.constraints);
   if (trajectory_validator_ && settings_.model_dt > 0.0 && settings_.time_steps > 0)
@@ -188,10 +186,7 @@ uint32_t Optimizer::evalControl(const geometry_msgs::PoseStamped& robot_pose, co
 
   utils::savitskyGolayFilter(control_sequence_, control_history_, settings_);
   cmd_vel = getControlFromSequenceAsTwist(plan.header);
-  if (settings_.open_loop)
-  {
-    last_command_vel_ = cmd_vel.twist;
-  }
+  last_command_vel_ = cmd_vel.twist;
 
   if (settings_.shift_control_sequence)
   {
@@ -237,8 +232,36 @@ bool Optimizer::fallback(bool fail, uint32_t& error)
 void Optimizer::prepare(const geometry_msgs::PoseStamped& robot_pose, const geometry_msgs::Twist& robot_speed,
                         const nav_msgs::Path& plan)
 {
+  if (settings_.open_loop) {
+    state_.speed = last_command_vel_;
+  } else {
+    // Predict state one controller_period forward toward the last command to compensate
+    // for the latency between measurement and when this command will take effect.
+    // Clamp to physically achievable range so prediction never exceeds dynamics.
+    const auto& c = settings_.constraints;
+    const float dt = settings_.controller_period;
+    state_.speed = robot_speed;
+    if (c.max_accel_trans > 0.0 || c.max_decel_trans > 0.0) {
+      state_.speed.linear.x = std::clamp(
+        last_command_vel_.linear.x,
+        robot_speed.linear.x - dt * c.max_decel_trans,
+        robot_speed.linear.x + dt * c.max_accel_trans);
+      if (isHolonomic()) {
+        state_.speed.linear.y = std::clamp(
+          last_command_vel_.linear.y,
+          robot_speed.linear.y - dt * c.max_decel_trans,
+          robot_speed.linear.y + dt * c.max_accel_trans);
+      }
+    }
+    if (c.max_accel_angular > 0.0 || c.max_decel_angular > 0.0) {
+      state_.speed.angular.z = std::clamp(
+        last_command_vel_.angular.z,
+        robot_speed.angular.z - dt * c.max_decel_angular,
+        robot_speed.angular.z + dt * c.max_accel_angular);
+    }
+  }
+
   state_.pose = robot_pose;
-  state_.speed = settings_.open_loop ? last_command_vel_ : robot_speed;
   path_ = utils::toTensor(plan);
   costs_.fill(0);
   critics_data_.trajectories_in_collision.assign(costs_.shape(0), false);
@@ -268,10 +291,52 @@ void Optimizer::shiftControlSequence()
 
 void Optimizer::generateNoisedTrajectories()
 {
+  applyControlSequenceInterIterationConstraints();
   noise_generator_.setNoisedControls(state_, control_sequence_);
   noise_generator_.generateNextNoises();
   updateStateVelocities(state_);
   integrateStateVelocities(generated_trajectories_, state_);
+}
+
+void Optimizer::applyControlSequenceInterIterationConstraints()
+{
+  // Enforce t=0 to be dynamically feasible from the current speed for inter-iteration feasibility.
+  // Re-centers the noise distribution at t=0, which is still information-theoretically sound.
+  auto& s = settings_;
+  const float dt = s.controller_period;
+  const float speed_vx = static_cast<float>(state_.speed.linear.x);
+  const float speed_wz = static_cast<float>(state_.speed.angular.z);
+
+  if (s.shift_control_sequence) {
+    // When shifting, vx(0) is "now" (not sent), so pin it to current speed so
+    // vx(1) is at most one constraint step away.
+    control_sequence_.vx(0) = speed_vx;
+    control_sequence_.wz(0) = speed_wz;
+    if (isHolonomic()) {
+      control_sequence_.vy(0) = static_cast<float>(state_.speed.linear.y);
+    }
+  } else {
+    // When not shifting, vx(0) is the sent command — clamp it to the feasible envelope.
+    const auto& c = s.constraints;
+    if (c.max_accel_trans > 0.0 || c.max_decel_trans > 0.0) {
+      control_sequence_.vx(0) = models::clampByAccel(
+        speed_vx, control_sequence_.vx(0),
+        c.max_accel_trans, c.max_decel_trans, dt);
+    }
+    if (c.max_accel_angular > 0.0 || c.max_decel_angular > 0.0) {
+      control_sequence_.wz(0) = models::clampByAccel(
+        speed_wz, control_sequence_.wz(0),
+        c.max_accel_angular, c.max_decel_angular, dt);
+    }
+    if (isHolonomic()) {
+      const float speed_vy = static_cast<float>(state_.speed.linear.y);
+      if (c.max_accel_trans > 0.0 || c.max_decel_trans > 0.0) {
+        control_sequence_.vy(0) = models::clampByAccel(
+          speed_vy, control_sequence_.vy(0),
+          c.max_accel_trans, c.max_decel_trans, dt);
+      }
+    }
+  }
 }
 
 bool Optimizer::isHolonomic() const
@@ -291,17 +356,12 @@ void Optimizer::applyControlSequenceConstraints()
   control_sequence_.vx = xt::clip(control_sequence_.vx, s.constraints.vx_min, s.constraints.vx_max);
   control_sequence_.wz = xt::clip(control_sequence_.wz, -s.constraints.wz, s.constraints.wz);
 
-  //max_vel_trans constraint
+  // max_vel_trans constraint
   float max_vel_trans = s.constraints.max_vel_trans;
-
-  for (unsigned int i = 1; i != control_sequence_.vx.shape(0); i++) {
+  for (unsigned int i = 0; i != control_sequence_.vx.shape(0); i++) {
     float vx_curr = control_sequence_.vx(i);
     float vy_curr = control_sequence_.vy(i);
-    float wz_curr = control_sequence_.wz(i);
-
-    // Apply max_vel_trans constraint
     float speed = std::hypot(vx_curr, vy_curr);
-
     if (speed > max_vel_trans) {
       float scale = max_vel_trans / speed;
       control_sequence_.vx(i) = vx_curr * scale;
@@ -312,7 +372,9 @@ void Optimizer::applyControlSequenceConstraints()
   motion_model_->applyConstraints(control_sequence_);
 
   // Acceleration / deceleration constraints on the mean control sequence.
-  // Step 0 is compared against the current robot velocity (state_.speed).
+  // Initialize from current robot speed (state_.speed) for inter-iteration feasibility.
+  // Use controller_period for t=0 (time until the sent command takes effect),
+  // then switch to model_dt for the rest of the MPC horizon.
   const auto& c = s.constraints;
   if (c.max_accel_trans > 0.0 || c.max_decel_trans > 0.0 ||
       c.max_accel_angular > 0.0 || c.max_decel_angular > 0.0)
@@ -320,24 +382,43 @@ void Optimizer::applyControlSequenceConstraints()
     float prev_vx = static_cast<float>(state_.speed.linear.x);
     float prev_vy = isHolonomic() ? static_cast<float>(state_.speed.linear.y) : 0.0f;
     float prev_wz = static_cast<float>(state_.speed.angular.z);
-    const float dt = static_cast<float>(s.model_dt);
+
+    // When shifting, t=0 is "now" — pin it to current speed so that t=1 (the sent
+    // command) is one constraint step away.
+    if (s.shift_control_sequence) {
+      control_sequence_.vx(0) = prev_vx;
+      control_sequence_.wz(0) = prev_wz;
+      if (isHolonomic()) {
+        control_sequence_.vy(0) = prev_vy;
+      }
+    }
 
     for (unsigned int i = 0; i < control_sequence_.vx.shape(0); ++i) {
-      control_sequence_.vx(i) = models::clampByAccel(
-          prev_vx, control_sequence_.vx(i), c.max_accel_trans, c.max_decel_trans, dt);
-      prev_vx = control_sequence_.vx(i);
+      // t=0 uses controller_period; subsequent steps use model_dt
+      const float dt = (i == 0) ? s.controller_period : static_cast<float>(s.model_dt);
 
-      if (isHolonomic()) {
-        control_sequence_.vy(i) = models::clampByAccel(
+      if (c.max_accel_trans > 0.0 || c.max_decel_trans > 0.0) {
+        control_sequence_.vx(i) = models::clampByAccel(
+          prev_vx, control_sequence_.vx(i), c.max_accel_trans, c.max_decel_trans, dt);
+        prev_vx = control_sequence_.vx(i);
+
+        if (isHolonomic()) {
+          control_sequence_.vy(i) = models::clampByAccel(
             prev_vy, control_sequence_.vy(i), c.max_accel_trans, c.max_decel_trans, dt);
-        prev_vy = control_sequence_.vy(i);
+          prev_vy = control_sequence_.vy(i);
+        }
       }
 
-      control_sequence_.wz(i) = models::clampByAccel(
+      if (c.max_accel_angular > 0.0 || c.max_decel_angular > 0.0) {
+        control_sequence_.wz(i) = models::clampByAccel(
           prev_wz, control_sequence_.wz(i), c.max_accel_angular, c.max_decel_angular, dt);
-      prev_wz = control_sequence_.wz(i);
+        prev_wz = control_sequence_.wz(i);
+      }
     }
   }
+
+  // Apply again to ensure acceleration constraints don't violate specialty limits (e.g. Ackermann)
+  motion_model_->applyConstraints(control_sequence_);
 }
 
 void Optimizer::updateStateVelocities(models::State& state) const

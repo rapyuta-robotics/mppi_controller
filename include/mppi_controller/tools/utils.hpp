@@ -473,9 +473,16 @@ inline void savitskyGolayFilter(models::ControlSequence& control_sequence,
                                 std::array<mppi::models::Control, 4>& control_history,
                                 const models::OptimizerSettings& settings)
 {
-  // Savitzky-Golay Quadratic, 9-point Coefficients
-  xt::xarray<float> filter = { -21.0, 14.0, 39.0, 54.0, 59.0, 54.0, 39.0, 14.0, -21.0 };
-  filter /= 231.0;
+  // Savitzky-Golay filter coefficients, 9-point window
+  xt::xarray<float> filter;
+  if (settings.sgf_order == 1) {
+    // Degree-1 (linear): uniform moving average with more aggressive smoothing
+    filter = { 1.0f/9, 1.0f/9, 1.0f/9, 1.0f/9, 1.0f/9, 1.0f/9, 1.0f/9, 1.0f/9, 1.0f/9 };
+  } else {
+    // Degree-2 (quadratic): standard 9-point SG coefficients
+    filter = { -21.0, 14.0, 39.0, 54.0, 59.0, 54.0, 39.0, 14.0, -21.0 };
+    filter /= 231.0;
+  }
 
   const unsigned int num_sequences = control_sequence.vx.shape(0) - 1;
 

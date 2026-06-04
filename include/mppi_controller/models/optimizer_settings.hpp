@@ -31,6 +31,7 @@ struct OptimizerSettings
   models::ControlConstraints constraints{ 0, 0, 0, 0, 0};
   models::SamplingStd sampling_std{ 0, 0, 0 };
   double model_dt{ 0 };
+  float controller_period{ 0.0f };
   double temperature{ 0 };
   double gamma{ 0 };
   int batch_size{ 0 };
@@ -39,6 +40,7 @@ struct OptimizerSettings
   bool shift_control_sequence{ false };
   int retry_attempt_limit{ 0 };
   bool open_loop{ false };
+  unsigned int sgf_order{ 2u };
 };
 
 }  // namespace mppi::models
